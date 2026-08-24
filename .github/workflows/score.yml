@@ -1,0 +1,82 @@
+name: score
+
+# Chained off scrape via workflow_run, NOT via `on: push`. Commits made with the
+# default GITHUB_TOKEN do not trigger workflows, so watching for the scrape's
+# data commit would never fire.
+on:
+  workflow_run:
+    workflows: ["scrape"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-write
+  cancel-in-progress: false
+
+jobs:
+  score:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # Skip when the scrape failed -- there is nothing new to score, and the model
+    # download is not worth the runner minutes.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # workflow_run checks out the default branch at the workflow's SHA,
+          # which predates the scrape's data commit. Fetch the branch tip so the
+          # rows just scraped are actually present.
+          ref: ${{ github.event.repository.default_branch }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-actions.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-actions.txt
+
+      - name: Install CPU-only PyTorch
+        # The default PyPI wheel bundles ~2 GB of CUDA that this runner has no
+        # GPU to use. The CPU index is ~200 MB and is all FinBERT needs here.
+        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Cache HuggingFace models
+        # Without this every run re-downloads ~440 MB of FinBERT weights.
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-${{ vars.FINBERT_MODEL || 'ProsusAI/finbert' }}-v1
+
+      - name: Score headlines
+        env:
+          PYTHONPATH: src
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          FINBERT_MODEL: ${{ vars.FINBERT_MODEL }}
+          # Silence the tokenizers fork warning that otherwise fills the log.
+          TOKENIZERS_PARALLELISM: "false"
+        run: python -m tobacco.jobs.score
+
+      - name: Commit scores
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/curated
+          if git diff --staged --quiet; then
+            echo "No score changes."
+            exit 0
+          fi
+          git commit -m "data: score $(date -u '+%Y-%m-%d %H:%M UTC')"
+          git pull --rebase --autostash origin ${GITHUB_REF_NAME}
+          git push

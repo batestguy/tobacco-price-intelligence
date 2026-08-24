@@ -1,0 +1,58 @@
+name: recommend
+
+# 08:00 WAT = 07:00 UTC, after the morning scrape (INTRO.txt §9 step 3).
+on:
+  schedule:
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-write
+  cancel-in-progress: false
+
+jobs:
+  recommend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-actions.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-actions.txt
+
+      - name: Forecast, optimize, alert, write memo
+        env:
+          PYTHONPATH: src
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          ALERT_RECIPIENTS_COMMERCIAL: ${{ vars.ALERT_RECIPIENTS_COMMERCIAL }}
+          ALERT_RECIPIENTS_SUPPLY: ${{ vars.ALERT_RECIPIENTS_SUPPLY }}
+        run: python -m tobacco.jobs.recommend
+
+      - name: Commit recommendations and memo
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/curated data/memos
+          if git diff --staged --quiet; then
+            echo "No recommendation changes."
+            exit 0
+          fi
+          git commit -m "data: recommendations $(date -u '+%Y-%m-%d')"
+          git pull --rebase --autostash origin ${GITHUB_REF_NAME}
+          git push

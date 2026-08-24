@@ -1,0 +1,2 @@
+# Month-partitioned Parquet lands here, written and committed by the Actions bot.
+# Layout: data/curated/<dataset>/<YYYY-MM>.parquet

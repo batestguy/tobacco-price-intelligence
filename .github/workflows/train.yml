@@ -1,0 +1,67 @@
+name: train
+
+# Sunday 00:00 WAT = Saturday 23:00 UTC (INTRO.txt §9 step 2).
+on:
+  schedule:
+    - cron: "0 23 * * 6"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-write
+  cancel-in-progress: false
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-actions.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-actions.txt
+
+      - name: Train forecaster
+        env:
+          PYTHONPATH: src
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python -m tobacco.jobs.train
+
+      - name: Report metrics
+        # Surfaced in the run summary so model quality is visible without
+        # digging through logs or opening the committed JSON.
+        run: |
+          {
+            echo "### Model metrics"
+            echo '```json'
+            cat models/metrics.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Commit model
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # .gitignore excludes *.joblib to keep experiment scratch out; the one
+          # model we do version is allow-listed there and added explicitly here.
+          git add -f models/xgb_demand.joblib models/metrics.json
+          git add data/curated
+          if git diff --staged --quiet; then
+            echo "No model changes."
+            exit 0
+          fi
+          git commit -m "model: retrain $(date -u '+%Y-%m-%d')"
+          git pull --rebase --autostash origin ${GITHUB_REF_NAME}
+          git push

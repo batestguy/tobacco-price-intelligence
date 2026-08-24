@@ -1,0 +1,2 @@
+# xgb_demand.joblib and metrics.json are written here by the train workflow.
+# .gitignore excludes *.joblib generally; this one file is allow-listed.
