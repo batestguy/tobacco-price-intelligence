@@ -1,0 +1,377 @@
+================================================================================
+         TOBACCO PRICE INTELLIGENCE & SUPPLY CHAIN OPTIMIZATION SYSTEM
+                             FULL WORKFLOW SPEC
+                          (100% Free-Tier Software)
+================================================================================
+
+TARGET: BAT Nigeria (or similar) – Ibadan factory, regional distribution.
+PURPOSE: Use public data + NLP + ML to recommend pricing and inventory actions.
+STATUS: Prototype-ready, 100% open-source and free to build.
+
+================================================================================
+1.  DATA SOURCES & ACQUISITION (Public APIs + Web Scraping)
+================================================================================
+
+REQUIRED DATA:
+- NGN/USD Exchange Rate (daily)
+- Inflation Rate (monthly)
+- Competitor Retail Prices (Bohem, Time, Gold Mount)
+- Financial News Headlines (Punch, Nairametrics, BusinessDay)
+- Social Media Posts (Twitter/X, Nairaland mentioning BAT brands)
+- Excise Tax & VAT changes (official gazettes)
+
+FREE TOOL OPTIONS (Choose any):
+  Option A: requests + BeautifulSoup (manual scraping)
+  Option B: newspaper3k + feedparser (auto-article extraction + RSS)
+  Option C: Scrapy (for large-scale structured scraping)
+  Option D: snscrape (for Twitter/X without API key – completely free)
+  Option E: CBN official API (https://www.cbn.gov.ng/api/GetAllExchangeRatesGRAPH)
+
+RECOMMENDED STACK:
+  - Exchange Rates: CBN REST API
+  - Inflation: NBS CSV via requests or FXMacroData API free tier
+  - Competitors: BeautifulSoup on Jumia/Konga
+  - News: newspaper3k (handles Nigerian sites well)
+  - Social: snscrape + tweepy (optional)
+
+SCHEDULED EXECUTION:
+  - Option A: GitHub Actions (free cron jobs, runs 2x daily)
+  - Option B: PythonAnywhere scheduled tasks (free tier allows daily runs)
+  - Option C: Your local machine with schedule library (not recommended for 24/7)
+
+
+================================================================================
+2.  DATA STORAGE (Cloud-Based, Free Tier)
+================================================================================
+
+FREE TOOL OPTIONS:
+  Option A: Supabase (PostgreSQL) – 500 MB, 2 concurrent connections, real-time
+  Option B: SQLite (local file) – zero config, easy to backup
+  Option C: MongoDB Atlas (free tier – 512 MB)
+  Option D: Google Sheets API (if you want zero-code DB)
+
+RECOMMENDED: Supabase (PostgreSQL) – because it provides:
+  - Built-in authentication (for role-based views)
+  - Real-time subscriptions (for dashboard updates)
+  - SQL querying via Python
+
+TABLES TO CREATE:
+  - exchange_rates (date, usd_ngn_rate)
+  - inflation (date, rate)
+  - competitor_prices (date, brand, price, region)
+  - news_articles (id, headline, url, timestamp, finbert_score)
+  - social_posts (id, text, timestamp, vader_score)
+  - sentiment_aggregates (date, fx_crisis_prob, consumer_sentiment)
+  - sales_mock (date, sku, region, quantity_sold) – for training
+  - recommendations (date, price_adjustment_pct, inventory_action)
+  - users (username, password_hash, role)
+  - logs (timestamp, action, status)
+
+
+================================================================================
+3.  NLP PIPELINE (Free Models + APIs)
+================================================================================
+
+LAYER 1: FINANCIAL NEWS ANALYSIS (Domain-Specific)
+  FREE OPTIONS:
+    A) FinBERT (HuggingFace) – run locally via transformers library
+    B) RoBERTa-base-finetuned-financial-news (alternative)
+    C) HuggingFace Inference API (free tier – 1000 requests/day)
+
+  OUTPUT: fx_crisis_probability (0–1), negative/positive/neutral scores
+
+LAYER 2: SOCIAL MEDIA SENTIMENT (High Speed, Lexicon-Based)
+  FREE OPTIONS:
+    A) VADER (NLTK) – fast, works on short text, handles emojis
+    B) TextBlob – simpler but less accurate for slang
+    C) Twitter-RoBERTa (HuggingFace) – better for social media but slower
+
+  OUTPUT: compound_sentiment (-1 to +1), price_acceptance_score (0–1)
+
+LAYER 3: REPORT GENERATION / REASONING (LLM)
+  FREE OPTIONS:
+    A) Groq API (Llama 3.3 70B) – 1000 requests/day, 12k tokens/min
+    B) Google Gemini 1.5 Flash – 1500 requests/day, free tier
+    C) Mistral API (free tier – 1000 requests/day)
+    D) Self-hosted Llama 3 (if you have GPU)
+
+  OUTPUT: 1-page strategic memo in plain English
+
+RECOMMENDED COMBO: FinBERT (local) + VADER (local) + Groq (API for memo only)
+
+
+================================================================================
+4.  FEATURE ENGINEERING & ML MODEL (Forecasting)
+================================================================================
+
+TARGET: Predict weekly demand per SKU per region for next 4 weeks.
+
+FEATURES TO GENERATE:
+  - Lagged FX rates (t-1, t-7, t-30)
+  - Inflation rate (monthly)
+  - Competitor price index (weighted average)
+  - News crisis score (t-1, t-3)
+  - Social sentiment score (t-1, t-3)
+  - Tax change dummy
+  - Holiday dummies (Sallah, Christmas, New Year)
+  - Region dummies (Lagos, Ibadan, Kano, PH)
+  - Own price (lagged)
+
+MODEL OPTIONS (All Free):
+  A) XGBoost – robust, handles nonlinearities, missing values
+  B) LightGBM – faster than XGBoost, similar accuracy
+  C) Facebook Prophet – specifically designed for time series with holidays
+  D) Scikit-learn RandomForest – simple, good for baseline
+
+RECOMMENDED: XGBoost (train on Google Colab free GPU/CPU)
+
+TRAINING STRATEGY:
+  - Initial training: Use 3+ years of synthetic or historical data (if provided)
+  - Retraining: Weekly via GitHub Actions (or manually)
+  - Online Learning: Use incremental updates with XGBoost (xgb.train with 
+    'process_type': 'update')
+
+EVALUATION METRICS:
+  - RMSE (Root Mean Squared Error)
+  - MAPE (Mean Absolute Percentage Error)
+
+
+================================================================================
+5.  OPTIMIZATION ENGINE (Pricing & Inventory Rebalancing)
+================================================================================
+
+INPUT: Forecasted demand, current stock levels, FX rate, competitor prices.
+OUTPUT: Recommended price increase (%) and inventory transfer suggestions.
+
+FREE TOOL OPTIONS:
+  A) SciPy (linprog) – linear programming, easy to use
+  B) PuLP – more flexible LP/MILP solver
+  C) Google OR-Tools – supports linear and integer programming
+  D) Pyomo – comprehensive optimization framework
+
+RECOMMENDED: SciPy linprog (lightweight, no external dependencies)
+
+CONSTRAINTS TO IMPLEMENT:
+  - Price cannot exceed competitor average + 5%
+  - Price cannot be lower than cost + 10% margin
+  - Inventory must stay between safety stock and max capacity
+  - Total rebalancing cost must be minimized
+
+OBJECTIVE: Maximize total profit = Σ(Price * Demand) - Σ(Inventory Holding Cost)
+
+
+================================================================================
+6.  DASHBOARD (Production-Ready, Role-Based)
+================================================================================
+
+FRAMEWORK OPTIONS (Free):
+  Option A: Plotly Dash (recommended) – enterprise-grade, multi-page, 
+            complex callbacks, supports authentication.
+  Option B: Gradio – simpler, faster to build, excellent for AI demos.
+  Option C: Streamlit (mentioned as alternative, though you asked for other 
+            options – but keeping it here as a fallback)
+  Option D: Reflex (formerly Pynecone) – full-stack web apps in pure Python.
+
+RECOMMENDED: Plotly Dash + dash-auth (for basic password protection)
+
+KEY VIEWS:
+  1. Executive Dashboard (Commercial Director):
+     - Current FX, inflation, sentiment trend (line chart)
+     - Recommended price adjustment (big number card)
+     - "Generate Memo" button (calls Groq API)
+     - Alert panel (latest triggers)
+  
+  2. Supply Chain View (Supply Chain Manager):
+     - Inventory heatmap (color-coded risk)
+     - Demand forecast plot (next 30 days)
+     - Rebalancing suggestions (table)
+     - Stockout alerts
+
+  3. Admin View:
+     - User management (add/remove, assign roles)
+
+ACCESS CONTROL:
+  - Implement using Supabase Auth (free) OR dash-auth (local).
+  - Password-protected with role-based route guarding.
+
+
+================================================================================
+7.  ALERT & NOTIFICATION SYSTEM (Free Tier)
+================================================================================
+
+RULES:
+  - FX drops > 2% in 24h → email both roles.
+  - Sentiment score < 0.3 → email Commercial Director.
+  - Stockout risk (red alert) → email Supply Chain Manager.
+  - Tax change detected → email both roles.
+
+FREE TOOL OPTIONS:
+  A) SMTP via Gmail (free – 100 emails/day, easy to set up)
+  B) SendGrid (free tier – 100 emails/day)
+  C) Mailgun (free tier – 500 emails/month)
+  D) Twilio SendGrid (similar)
+
+RECOMMENDED: Gmail SMTP (no extra signup needed) – use an app password.
+
+
+================================================================================
+8.  DEPLOYMENT & HOSTING (100% Free Tier)
+================================================================================
+
+HOSTING OPTIONS FOR DASH APP:
+  A) PythonAnywhere (free tier) – 1 web app, 512 MB RAM, supports Dash
+  B) Render.com (free web service) – starts from GitHub, auto-deploy
+  C) Hugging Face Spaces (free) – if you use Gradio or Streamlit
+  D) Vercel (if you convert to Next.js – not Python-native)
+
+RECOMMENDED: PythonAnywhere for simplicity + free scheduled tasks (cron).
+
+DATABASE HOSTING:
+  A) Supabase (free PostgreSQL) – already recommended.
+  B) PlanetScale (free MySQL) – alternative.
+  C) PythonAnywhere's own MySQL (free – 100 MB limit, but works).
+
+SCHEDULED JOBS (Scraping + NLP):
+  A) GitHub Actions (free cron) – runs code in your repo.
+  B) PythonAnywhere Scheduled Tasks (free – daily runs).
+  C) Cron-job.org (external service to call your API endpoints).
+
+RECOMMENDED: GitHub Actions for scraping (reusable, logs visible) + 
+PythonAnywhere for the web app.
+
+
+================================================================================
+9.  END-TO-END AUTOMATION PIPELINE (How It All Connects)
+================================================================================
+
+[1] GitHub Action (6 AM & 6 PM WAT)
+    ├── Scraper: Fetch FX, inflation, news, social, competitor prices.
+    ├── Store raw data in Supabase.
+    └── Trigger NLP processor (FinBERT + VADER) -> store scores.
+
+[2] Weekly Retraining (Sunday 12 AM WAT)
+    ├── Pull latest data from Supabase.
+    ├── Engineer features (lags, dummies, sentiment composites).
+    ├── Train XGBoost model (or update existing).
+    ├── Evaluate and log metrics.
+    └── Push updated model to a file (joblib) – store in GitHub Releases or S3.
+
+[3] Daily Recommendation Engine (After morning scrape, 8 AM WAT)
+    ├── Load latest model.
+    ├── Run forecast for next 4 weeks.
+    ├── Run SciPy optimizer to find optimal price/inventory action.
+    ├── Write recommendation to Supabase.
+    ├── Check alert rules; send emails if triggered.
+    └── (Optional) Auto-generate a draft memo via Groq (saved for dashboard).
+
+[4] User Interaction (Dashboard – on-demand)
+    ├── User logs in (Dash with auth).
+    ├── Dashboard loads latest recommendations, charts, alerts.
+    ├── User clicks "Generate Memo" –> triggers Groq API with current data.
+    ├── User can view historical recommendations, download PDF (optional).
+    └── Supply Chain manager sees inventory actions, confirms/denies.
+
+
+================================================================================
+10. GROQ MEMO GENERATOR – PROMPT TEMPLATE (Copy-Paste Ready)
+================================================================================
+
+Use this exact prompt structure for the best free-tier results:
+
+"""
+You are a senior business intelligence analyst for a tobacco company in Nigeria. 
+Based on the following real-time data, write a 1-page strategic memo for the 
+Commercial Director. Keep it professional, actionable, and under 400 words.
+
+DATA:
+- Current NGN/USD exchange rate: {fx_rate} (7-day change: {fx_change}%)
+- Monthly inflation rate: {inflation}%
+- Consumer sentiment score (0=very negative, 1=very positive): {sentiment}
+- Financial news crisis probability (0=low, 1=high): {crisis_score}
+- Recommended price adjustment (overall): {price_rec}%
+- Top competitor (Bohem) average price per pack: {competitor_price}
+- Demand forecast trend (growing/stable/declining): {demand_trend}
+- Current stock alert: {stock_alert} (low/ok/high)
+
+INSTRUCTIONS:
+1. Provide a clear recommendation on whether to adjust prices and by how much.
+2. Suggest inventory actions (rebalancing or reordering) based on stock alert.
+3. Mention key risks (regulatory, FX volatility, competition).
+4. Propose a timeline (immediate, next 7 days, next 30 days).
+5. End with a final one-sentence bottom-line recommendation.
+
+OUTPUT FORMAT:
+Subject: Strategic Price & Inventory Recommendation – [Date]
+
+[Body with clear sections: Situation, Recommendation, Risks, Timeline]
+
+Bottom line: [One sentence].
+"""
+
+
+================================================================================
+11. LEGAL DISCLAIMER (Must Display on Dashboard Interface)
+================================================================================
+
+Copy and paste this text into the dashboard footer or login page:
+
+"""
+DISCLAIMER: This tool is intended for internal operational efficiency and 
+supply chain management only. It does NOT promote, advertise, or encourage 
+the production, sale, or consumption of tobacco products. All recommendations 
+are for internal decision-support and comply with the National Tobacco Control 
+Act 2015 and WHO FCTC Article 5.3. Data is aggregated and anonymized; no 
+individual consumer data is stored. Use of this tool is restricted to 
+authorized personnel only.
+"""
+
+
+================================================================================
+12. QUICK START: LIST OF FREE ACCOUNTS TO SIGN UP FOR
+================================================================================
+
+Before coding, create these free accounts (all have generous free tiers):
+
+  1. GitHub.com (free) – for code hosting and Actions cron.
+  2. Supabase.com (free) – for PostgreSQL database + auth.
+  3. Groq.com (free API key) – for Llama 3.3 70B memo generation.
+  4. PythonAnywhere.com (free) – for hosting the Dash app.
+  5. Gmail account (free) – for SMTP alerts (use App Password).
+  6. (Optional) HuggingFace.co (free) – for FinBERT inference API if not local.
+  7. (Optional) Render.com (free) – alternative hosting if PythonAnywhere limits.
+
+
+================================================================================
+13. ALTERNATIVE FREE PACKAGES (At Least 2 Per Category – Summary)
+================================================================================
+
+CATEGORY                 | OPTION 1               | OPTION 2               | OPTION 3
+-------------------------|------------------------|------------------------|------------------------
+Web Scraping             | requests + BeautifulSoup | newspaper3k           | Scrapy
+Scheduling               | GitHub Actions         | PythonAnywhere Tasks  | Cron-job.org
+Database                 | Supabase (PostgreSQL)  | SQLite                | MongoDB Atlas
+Financial NLP            | FinBERT (HF)           | RoBERTa-finance       | Groq API (zero-shot)
+Social Sentiment         | VADER (NLTK)           | Twitter-RoBERTa       | TextBlob
+Report LLM               | Groq (Llama 3.3)       | Gemini Flash          | Mistral API
+Forecasting ML           | XGBoost                | Prophet               | LightGBM
+Optimization             | SciPy (linprog)        | PuLP                  | OR-Tools
+Dashboard Framework      | Plotly Dash            | Gradio                | Streamlit
+Hosting                  | PythonAnywhere         | Render.com            | Hugging Face Spaces
+Email Alerts             | Gmail SMTP             | SendGrid              | Mailgun
+Version Control          | GitHub                 | GitLab (free)         | Bitbucket
+
+
+================================================================================
+14. NEXT STEPS (Suggested Implementation Order)
+================================================================================
+
+Week 1: Set up GitHub repo, Supabase tables, and test CBN API scraper.
+Week 2: Build news + social scrapers and run FinBERT/VADER locally.
+Week 3: Train XGBoost on mock data, integrate with SciPy optimizer.
+Week 4: Build Dash dashboard with role-based views and basic auth.
+Week 5: Integrate Groq memo generator and SMTP alerts.
+Week 6: Deploy to PythonAnywhere, test end-to-end, write documentation.
+
+================================================================================
+END OF SPEC
+================================================================================

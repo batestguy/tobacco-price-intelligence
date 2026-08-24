@@ -1,0 +1,9 @@
+# Streamlit Community Cloud installs this file at the repo root.
+# Keep it MINIMAL -- the app container has 1 GB RAM and must not pull torch,
+# transformers, or xgboost. The dashboard only reads data; it never scores or trains.
+streamlit==1.40.2
+pandas==2.2.3
+pyarrow==18.1.0
+plotly==5.24.1
+requests==2.32.3
+python-dateutil==2.9.0.post0

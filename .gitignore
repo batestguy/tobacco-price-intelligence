@@ -1,0 +1,44 @@
+# --- secrets: never commit anything that resembles a credential -------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.toml
+.streamlit/secrets.toml
+
+# --- python -----------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.ipynb_checkpoints/
+.pytest_cache/
+.ruff_cache/
+
+# --- scratch model artifacts -------------------------------------------------
+# Models that belong in the repo are added explicitly with `git add -f`.
+# Everything else (experiment scratch, large checkpoints) stays out.
+*.joblib
+!models/xgb_demand.joblib
+*.pt
+*.bin
+*.safetensors
+*.onnx
+
+# --- raw / transient data ----------------------------------------------------
+# Only data/curated/ is versioned. Raw scrapes and full article bodies must
+# never reach the public repo (see CLAUDE.md "What must never be committed").
+data/raw/
+data/tmp/
+*.html.gz
+
+# --- os / editor -------------------------------------------------------------
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
