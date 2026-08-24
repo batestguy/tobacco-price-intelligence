@@ -82,8 +82,9 @@ You don't run it — that is the point. Every stage is a GitHub Actions workflow
 gh workflow run scrape.yml && gh run watch
 ```
 
-Setup (accounts, secrets, Supabase schema, Streamlit deployment) is documented in
-[REGISTRY.md](REGISTRY.md).
+Setup — accounts, secrets, the Supabase schema, and the Streamlit deployment — is a
+step-by-step runbook in [SETUP.md](SETUP.md). [REGISTRY.md](REGISTRY.md) is the
+reference index of every external service, endpoint and secret name.
 
 ## Free-tier constraints that shaped the design
 

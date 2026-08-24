@@ -37,6 +37,10 @@ data/raw/
 data/tmp/
 *.html.gz
 
+# --- local tooling -----------------------------------------------------------
+# Claude Code's per-machine permission rules; not part of the project.
+.claude/
+
 # --- os / editor -------------------------------------------------------------
 .DS_Store
 Thumbs.db

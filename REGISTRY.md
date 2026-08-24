@@ -74,13 +74,17 @@ SUPABASE_ANON_KEY = "<anon key, NOT the service key>"
 The app is publicly reachable, so it gets the **anon** key only, and relies on Supabase Auth
 plus row-level security for access control.
 
-## Setup order
+## Setup
 
-1. Create the Supabase project; run `supabase/schema.sql` in the SQL editor.
-2. `gh secret set` the six secrets above.
-3. `gh workflow run scrape.yml` — confirm a Parquet file is committed by the Actions bot.
-4. Deploy `app/streamlit_app.py` on Streamlit Cloud from this repo; add its two secrets.
-5. Record the resulting dashboard URL in the table above.
+The full runbook, with what breaks if you skip each step, is in
+[SETUP.md](SETUP.md). In short:
+
+1. `gh repo create ... --public --source=. --push`
+2. Create the Supabase project; run `supabase/schema.sql` in the SQL editor.
+3. `gh secret set` the six secrets above.
+4. `gh workflow run scrape.yml` — confirm a Parquet file is committed by the Actions bot.
+5. Deploy `app/streamlit_app.py` on Streamlit Cloud; add its two secrets separately.
+6. Record the resulting dashboard URL in the table above.
 
 ## Workflows
 
