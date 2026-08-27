@@ -110,6 +110,15 @@ do not "fix" the code back toward the spec:
    Nigeria rebased its CPI in January 2025. Say which tier a figure came from rather than
    letting it read as an official NBS statistic; a real NBS series still outranks it.
 
+   **Do not expect `inflation` to rank as a feature, and do not tune it hoping it will.**
+   Sales are synthetic, and `sources/sales_mock.py` derives quantity from SKU, region,
+   seasonality, holiday weeks, price and FX — `quantity = level * trend * seasonal *
+   price_effect * holiday_lift * noise`. Inflation is not in the data-generating process,
+   so there is no signal in the target for it to find, whatever the series quality. Fixing
+   the cadence was worth doing because a constant column was *wrong*, not because it would
+   move `metrics.json`. A real importance score needs a real sales history, which the
+   public-repo constraint rules out.
+
 5. **§2's serving layer is gone, and with it the `logs` table.** Every job used to write
    Parquet and then mirror the same rows into Supabase Postgres. **Nothing ever read them.**
    `app/data.py` has always read the committed Parquet from the Streamlit Cloud checkout, and
