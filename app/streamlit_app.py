@@ -81,7 +81,7 @@ def render_login() -> None:
 def render_headline_metrics() -> None:
     rate, change, carried = data.latest_fx()
     sentiment, crisis = data.latest_sentiment()
-    inflation = data.latest_inflation()
+    inflation, inflation_basis, inflation_help = data.latest_inflation()
 
     col1, col2, col3, col4 = st.columns(4)
 
@@ -97,7 +97,15 @@ def render_headline_metrics() -> None:
         if carried:
             st.caption("⚠️ Carried forward — CBN was unreachable")
 
-    col2.metric("Inflation", f"{inflation:.2f}%" if inflation is not None else "—")
+    with col2:
+        st.metric(
+            f"Inflation ({inflation_basis.lower()})" if inflation_basis else "Inflation",
+            f"{inflation:.2f}%" if inflation is not None else "—",
+            help=inflation_help,
+        )
+        if inflation_basis == "Annual":
+            st.caption("⚠️ Annual basis — no monthly series available")
+
     col3.metric(
         "Consumer sentiment",
         f"{sentiment:.2f}" if sentiment is not None else "—",

@@ -48,6 +48,21 @@ Subject: Strategic Price & Inventory Recommendation – [Date]
 
 Bottom line: [One sentence]."""
 
+#: Appended *after* the verbatim template, never spliced into it.
+#:
+#: The §10 DATA block is fixed text and it labels inflation "Monthly". When the
+#: figure actually came from an annual tier -- which is the normal case today,
+#: see CLAUDE.md departure 4 -- that label overstates it. Rewording the template
+#: is not allowed and silently shipping the wrong basis is worse, so the caveat
+#: goes here, outside the mandated text.
+PROVENANCE_TEMPLATE = """
+
+DATA PROVENANCE — read before writing:
+{notes}
+
+Do not describe any figure above as more current or more granular than its
+basis here allows, and surface these caveats in the Risks section."""
+
 
 def build_prompt(**values) -> str:
     """Fill the template, rendering unavailable inputs as an explicit 'unavailable'.
@@ -55,6 +70,9 @@ def build_prompt(**values) -> str:
     A missing value must never arrive as ``None`` or ``nan``: the model would
     read it as a number and reason from it. Saying "unavailable" makes the gap
     visible in the memo instead.
+
+    ``notes`` is an optional list of provenance caveats, appended after the
+    template rather than woven into it.
     """
     fields = {
         "fx_rate", "fx_change", "inflation", "sentiment", "crisis_score",
@@ -64,7 +82,15 @@ def build_prompt(**values) -> str:
     for field in fields:
         value = values.get(field)
         filled[field] = "unavailable" if value is None or value != value else value
-    return PROMPT_TEMPLATE.format(**filled)
+
+    prompt = PROMPT_TEMPLATE.format(**filled)
+
+    notes = [note for note in (values.get("notes") or []) if note]
+    if notes:
+        prompt += PROVENANCE_TEMPLATE.format(
+            notes="\n".join(f"- {note}" for note in notes)
+        )
+    return prompt
 
 
 def generate(**values) -> str:
@@ -102,10 +128,19 @@ def _fallback(prompt: str, reason: str) -> str:
     missing. Returning them plainly beats returning an error string.
     """
     data_block = prompt.split("DATA:", 1)[-1].split("INSTRUCTIONS:", 1)[0].strip()
+
+    # The caveats matter more here than in the LLM path, not less: with no prose
+    # to qualify them, the raw figures are all the reader gets.
+    provenance = ""
+    if "DATA PROVENANCE" in prompt:
+        notes = prompt.split("DATA PROVENANCE — read before writing:", 1)[-1]
+        notes = notes.split("\n\nDo not describe", 1)[0].strip()
+        provenance = f"\n\nData provenance:\n\n{notes}"
+
     return (
         f"Subject: Strategic Price & Inventory Recommendation – {config.today_wat()}\n\n"
         f"[Automated memo generation unavailable: {reason}]\n\n"
-        f"The underlying figures are unaffected:\n\n{data_block}\n\n"
+        f"The underlying figures are unaffected:\n\n{data_block}{provenance}\n\n"
         f"Bottom line: review the figures above on the dashboard; narrative "
         f"generation will resume once the Groq API is reachable."
     )

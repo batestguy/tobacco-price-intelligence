@@ -140,16 +140,21 @@ def run() -> int:
 
     # --- memo (non-fatal) ---------------------------------------------------
     try:
+        inflation_rate, inflation_note = _latest_inflation()
         memo = groq.generate(
             fx_rate=f"{fx_rate:,.2f}" if fx_rate else None,
             fx_change=f"{fx_change:+.2f}" if fx_change is not None else None,
-            inflation=_latest_inflation(),
+            inflation=inflation_rate,
             sentiment=f"{sentiment:.2f}" if sentiment is not None else None,
             crisis_score=f"{crisis:.2f}" if crisis is not None else None,
             price_rec=f"{result.overall_adjustment_pct:+.2f}",
             competitor_price=f"NGN {competitor_avg:,.0f}" if competitor_avg else None,
             demand_trend=predict.demand_trend(forecast),
             stock_alert=_overall_stock_alert(result),
+            # The optimizer's own notes already say when a constraint is
+            # inactive; passing them through stops the memo reasoning as though
+            # a bound applied when none did.
+            notes=[inflation_note, *result.notes],
         )
         MEMO_DIR.mkdir(parents=True, exist_ok=True)
         memo_path = MEMO_DIR / f"{config.today_wat()}.md"
@@ -167,11 +172,35 @@ def run() -> int:
     return 0
 
 
-def _latest_inflation() -> str | None:
+#: How each inflation tier should be described in the memo. The §10 prompt calls
+#: the field "Monthly inflation rate" and that text is fixed, so when the figure
+#: is not monthly the caveat has to travel alongside it.
+_INFLATION_BASIS = {
+    "cbn_monthly": "monthly (CBN, republishing the NBS CPI series)",
+    "nbs_release": "monthly (NBS release)",
+    "seed": "monthly (committed NBS back series)",
+    "worldbank_annual": (
+        "ANNUAL, not monthly (World Bank FP.CPI.TOTL.ZG). NBS has no reachable "
+        "machine-readable release and CBN's monthly table renders client-side, "
+        "so this is the most recent full calendar year, carried forward"
+    ),
+}
+
+
+def _latest_inflation() -> tuple[str | None, str]:
+    """Latest inflation rate, plus a note stating what basis it is on."""
     inflation = parquet_io.read("inflation")
     if inflation.empty:
-        return None
-    return f"{float(inflation.sort_values('date').iloc[-1]['rate']):.2f}"
+        return None, "Inflation is unavailable from every source tier."
+
+    row = inflation.sort_values("date").iloc[-1]
+    source = str(row.get("source") or "unknown")
+    basis = _INFLATION_BASIS.get(source, f"from an unrecognised tier {source!r}")
+    note = (
+        f"Inflation is {basis}. Observation dated "
+        f"{pd.Timestamp(row['date']).date()}."
+    )
+    return f"{float(row['rate']):.2f}", note
 
 
 if __name__ == "__main__":

@@ -76,11 +76,34 @@ def latest_sentiment() -> tuple[float | None, float | None]:
     return last_valid("consumer_sentiment"), last_valid("fx_crisis_prob")
 
 
-def latest_inflation() -> float | None:
+#: Short labels for the inflation cascade's tiers (``sources/nbs.py``). The card
+#: must say which one it is showing: the annual tier is a full calendar year
+#: carried forward, and rendering it bare would read as a current monthly rate.
+INFLATION_BASIS = {
+    "cbn_monthly": ("Monthly", "CBN, republishing the NBS CPI series"),
+    "nbs_release": ("Monthly", "Direct NBS release"),
+    "seed": ("Monthly", "Committed NBS back series"),
+    "worldbank_annual": (
+        "Annual",
+        "World Bank FP.CPI.TOTL.ZG — the last full calendar year, carried "
+        "forward. No monthly series is currently reachable.",
+    ),
+}
+
+
+def latest_inflation() -> tuple[float | None, str | None, str | None]:
+    """``(rate, basis, explanation)`` for the most recent inflation observation."""
     inflation = load("inflation")
     if inflation.empty:
-        return None
-    return float(inflation.sort_values("date").iloc[-1]["rate"])
+        return None, None, None
+
+    row = inflation.sort_values("date").iloc[-1]
+    source = str(row.get("source") or "unknown")
+    basis, explanation = INFLATION_BASIS.get(
+        source, ("Unknown basis", f"Unrecognised source tier '{source}'")
+    )
+    observed = pd.to_datetime(row["date"]).date()
+    return float(row["rate"]), basis, f"{explanation} Observed {observed}."
 
 
 def latest_recommendations() -> pd.DataFrame:
