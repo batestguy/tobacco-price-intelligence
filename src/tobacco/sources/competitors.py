@@ -94,7 +94,7 @@ def fetch() -> pd.DataFrame:
             "Competitor reference file is header-only. This is the expected "
             "state: marketplace scraping was removed under NTCA 2015 s.15(4) "
             "and no cited replacement prices have been recorded yet. The "
-            "optimizer's +5%% competitor ceiling will report as INACTIVE."
+            "optimizer's +5% competitor ceiling will report as INACTIVE."
         )
         return pd.DataFrame(columns=COLUMNS)
 
