@@ -33,8 +33,9 @@ project back up.
 | CBN FX rates | `https://www.cbn.gov.ng/api/GetAllExchangeRatesGRAPH` | daily | Known flaky; `sources/cbn.py` falls back to the rates HTML page, then to carrying forward the last observation |
 | Inflation — tier 1 | `NBS_INFLATION_URL` repo variable | monthly | **Unset by default.** Point it at a live NBS CSV/XLSX release when one exists; the old hard-coded `nigerianstat.gov.ng/resource/csv/cpi.csv` now 404s |
 | Inflation — tier 2 | `https://www.cbn.gov.ng/rates/inflrates.html` | monthly | CBN republishes the NBS CPI series. Right cadence, but rows render client-side, so this usually parses empty |
-| Inflation — tier 3 | `https://api.worldbank.org/v2/country/NG/indicator/FP.CPI.TOTL.ZG?format=json` | annual | No key. Stable and currently the **live** tier — **annual and lagged**, newest value is last calendar year |
-| Inflation — tier 4 | `data/seed/inflation.csv` | — | Backfill, not included. See `data/seed/README.md` |
+| Inflation — tier 3 | `data/seed/inflation.csv` | — | Backfill, not included. See `data/seed/README.md` |
+| Inflation — tier 4 | `https://api.worldbank.org/v2/country/NGA/indicator/CPTOTSAXNZGY?source=15&format=json` | monthly | No key. Global Economic Monitor, back to 2015M01, and currently the **live** tier. `source=15` is required — GEM is outside the default WDI source and the call errors without it. **Seasonally adjusted World Bank staff calculation, not NBS's published headline** |
+| Inflation — tier 5 | `https://api.worldbank.org/v2/country/NG/indicator/FP.CPI.TOTL.ZG?format=json` | annual | No key. The floor tier — **annual and lagged**, newest value is last calendar year |
 | Competitor prices | `data/seed/competitor_prices.csv` | manual | **Marketplace scraping removed** — NTCA 2015 s.15(4) bans online tobacco sale in Nigeria. Cited reference file, header-only; optimizer reports its ceiling `INACTIVE` |
 | Financial news | Punch, Nairametrics, BusinessDay RSS | 2×/day | **Headline + URL + score only.** Bodies are scored in memory and discarded |
 

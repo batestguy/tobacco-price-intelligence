@@ -75,34 +75,50 @@ def latest_sentiment() -> tuple[float | None, float | None]:
     return last_valid("consumer_sentiment"), last_valid("fx_crisis_prob")
 
 
-#: Short labels for the inflation cascade's tiers (``sources/nbs.py``). The card
-#: must say which one it is showing: the annual tier is a full calendar year
-#: carried forward, and rendering it bare would read as a current monthly rate.
+#: ``(basis, tooltip, caption)`` per tier of the inflation cascade
+#: (``sources/nbs.py``). The card must say which tier it is showing, and two of
+#: them need a visible caption rather than only a tooltip: the annual tier is a
+#: full calendar year carried forward and would otherwise read as a current
+#: monthly rate, and the GEM tier *is* monthly but is a seasonally adjusted
+#: World Bank calculation, so it will not match the NBS figure in the news.
 INFLATION_BASIS = {
-    "cbn_monthly": ("Monthly", "CBN, republishing the NBS CPI series"),
-    "nbs_release": ("Monthly", "Direct NBS release"),
-    "seed": ("Monthly", "Committed NBS back series"),
+    "cbn_monthly": ("Monthly", "CBN, republishing the NBS CPI series", None),
+    "nbs_release": ("Monthly", "Direct NBS release", None),
+    "seed": ("Monthly", "Committed NBS back series", None),
+    "worldbank_gem_monthly": (
+        "Monthly",
+        "World Bank Global Economic Monitor, indicator CPTOTSAXNZGY — monthly "
+        "and current, but a seasonally adjusted World Bank staff calculation "
+        "rather than the headline rate NBS publishes.",
+        "⚠️ World Bank GEM, seasonally adjusted — not NBS's published figure",
+    ),
     "worldbank_annual": (
         "Annual",
         "World Bank FP.CPI.TOTL.ZG — the last full calendar year, carried "
         "forward. No monthly series is currently reachable.",
+        "⚠️ Annual basis — no monthly series available",
     ),
 }
 
 
-def latest_inflation() -> tuple[float | None, str | None, str | None]:
-    """``(rate, basis, explanation)`` for the most recent inflation observation."""
+def latest_inflation() -> tuple[float | None, str | None, str | None, str | None]:
+    """``(rate, basis, explanation, caption)`` for the newest inflation row."""
     inflation = load("inflation")
     if inflation.empty:
-        return None, None, None
+        return None, None, None, None
 
     row = inflation.sort_values("date").iloc[-1]
     source = str(row.get("source") or "unknown")
-    basis, explanation = INFLATION_BASIS.get(
-        source, ("Unknown basis", f"Unrecognised source tier '{source}'")
+    basis, explanation, caption = INFLATION_BASIS.get(
+        source,
+        (
+            "Unknown basis",
+            f"Unrecognised source tier '{source}'",
+            f"⚠️ Unrecognised source tier '{source}'",
+        ),
     )
     observed = pd.to_datetime(row["date"]).date()
-    return float(row["rate"]), basis, f"{explanation} Observed {observed}."
+    return float(row["rate"]), basis, f"{explanation} Observed {observed}.", caption
 
 
 def latest_recommendations() -> pd.DataFrame:

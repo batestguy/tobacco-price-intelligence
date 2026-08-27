@@ -98,10 +98,17 @@ do not "fix" the code back toward the spec:
    data — do not add a fallback that invents one.
 
    Relatedly, §1's NBS CSV endpoint is dead (404) and NBS has no stable machine-readable
-   release. `sources/nbs.py` degrades `NBS_INFLATION_URL` → CBN monthly → **World Bank annual**
-   → seed, tagging each row's tier in `source`. NBS is still the origin of the figures; it is
-   just not reachable directly. Expect the World Bank tier to serve today, which means
-   inflation is **annual and lagged** — say so rather than letting it look monthly.
+   release. `sources/nbs.py` degrades `NBS_INFLATION_URL` → CBN monthly → seed →
+   **World Bank GEM monthly** → World Bank annual, tagging each row's tier in `source`.
+   NBS is still the origin of the figures; it is just not reachable directly.
+
+   Expect the **GEM tier** (`CPTOTSAXNZGY`, `source=15`) to serve today. It is monthly back
+   to 2015, which is what makes `inflation` a usable §4 feature at all — the annual tier
+   below it is one observation per year, forward-filled into a step function that barely
+   varies across the training window. But GEM is a **seasonally adjusted World Bank staff
+   calculation, not NBS's published headline**, and the two diverge by roughly 3pp since
+   Nigeria rebased its CPI in January 2025. Say which tier a figure came from rather than
+   letting it read as an official NBS statistic; a real NBS series still outranks it.
 
 5. **§2's serving layer is gone, and with it the `logs` table.** Every job used to write
    Parquet and then mirror the same rows into Supabase Postgres. **Nothing ever read them.**

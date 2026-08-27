@@ -174,6 +174,13 @@ _INFLATION_BASIS = {
     "cbn_monthly": "monthly (CBN, republishing the NBS CPI series)",
     "nbs_release": "monthly (NBS release)",
     "seed": "monthly (committed NBS back series)",
+    "worldbank_gem_monthly": (
+        "monthly (World Bank Global Economic Monitor, CPTOTSAXNZGY). NBS has no "
+        "reachable machine-readable release and CBN's monthly table renders "
+        "client-side, so this is a seasonally adjusted World Bank staff "
+        "calculation rather than NBS's published headline rate -- treat it as a "
+        "trend, not as an official figure to quote"
+    ),
     "worldbank_annual": (
         "ANNUAL, not monthly (World Bank FP.CPI.TOTL.ZG). NBS has no reachable "
         "machine-readable release and CBN's monthly table renders client-side, "

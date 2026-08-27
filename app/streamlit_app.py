@@ -81,7 +81,9 @@ def render_login() -> None:
 def render_headline_metrics() -> None:
     rate, change, carried = data.latest_fx()
     sentiment, crisis = data.latest_sentiment()
-    inflation, inflation_basis, inflation_help = data.latest_inflation()
+    inflation, inflation_basis, inflation_help, inflation_caption = (
+        data.latest_inflation()
+    )
 
     col1, col2, col3, col4 = st.columns(4)
 
@@ -103,8 +105,8 @@ def render_headline_metrics() -> None:
             f"{inflation:.2f}%" if inflation is not None else "—",
             help=inflation_help,
         )
-        if inflation_basis == "Annual":
-            st.caption("⚠️ Annual basis — no monthly series available")
+        if inflation_caption:
+            st.caption(inflation_caption)
 
     col3.metric(
         "Consumer sentiment",

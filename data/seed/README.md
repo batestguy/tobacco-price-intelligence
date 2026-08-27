@@ -17,13 +17,20 @@ endpoint, so the back series has to be assembled by hand.
 is an official statistic; inventing a back series would put fabricated figures
 into the model's features.
 
-Its absence is survivable rather than free. `sources/nbs.py` runs a four-tier
-cascade and, with this file missing and CBN's monthly table rendering its rows
-client-side, inflation currently comes from the **World Bank annual** series
-(`FP.CPI.TOTL.ZG`). That is real, cited data, but it is annual and lagged — the
-newest observation is the previous calendar year, carried forward as a step
-function. Adding a monthly back series here is the single biggest available
-improvement to the `inflation` feature.
+Its absence is survivable. `sources/nbs.py` runs a five-tier cascade and, with
+this file missing and CBN's monthly table rendering its rows client-side,
+inflation currently comes from the **World Bank Global Economic Monitor**
+(`CPTOTSAXNZGY`, `source=15`) — monthly back to 2015M01, cited and key-free.
+
+That covers the *cadence* problem this file was going to solve; it does not cover
+the *provenance* one. GEM is a seasonally adjusted World Bank staff calculation,
+so it does not reproduce NBS's published headline rate — the two diverge by
+roughly 3pp since Nigeria rebased its CPI in January 2025. It is a sound model
+feature and a poor citation.
+
+So this file is still worth filling, for a narrower reason than before: it is the
+only way to get **NBS's own published monthly figures** into the series. It
+outranks both World Bank tiers for every month it covers.
 
 To populate it, download the CPI time series from
 [nigerianstat.gov.ng](https://nigerianstat.gov.ng) and save it here as:
@@ -39,8 +46,8 @@ date,rate,food_rate,core_rate
 - `food_rate`, `core_rate` — optional
 
 `sources/nbs.py` parses this file by column *meaning*, so extra columns and
-different orderings are tolerated. Seed rows outrank the World Bank annual series
-for months they cover, and are outranked in turn by CBN's monthly table and by an
+different orderings are tolerated. Seed rows outrank both World Bank tiers for
+months they cover, and are outranked in turn by CBN's monthly table and by an
 explicit `NBS_INFLATION_URL` release. Each row records its tier in `source`.
 
 ## `competitor_prices.csv` — header only

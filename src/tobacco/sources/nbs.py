@@ -14,16 +14,19 @@ most reliable data:
    guessed default URL is what broke.
 2. **CBN monthly** (``cbn.gov.ng/rates/inflrates.html``) -- CBN republishes the
    NBS CPI series monthly. Right cadence for §4, but an HTML scrape, i.e. the
-   same fragility class as the thing that just broke.
-3. **World Bank annual** -- ``FP.CPI.TOTL.ZG`` for Nigeria. A documented, stable,
-   key-free JSON API. **It is annual and lagged**: as of Aug 2026 the newest
-   observation is 2025. An annual step function is a much weaker demand driver
-   than the monthly series §4 assumes, so this is the reliable *floor*, not the
-   ideal.
-4. **Committed seed** -- ``data/seed/inflation.csv``, backfill only.
+   same fragility class as the thing that just broke. Its rows are populated
+   client-side, so in practice it parses to nothing.
+3. **Committed seed** -- ``data/seed/inflation.csv``, backfill only.
+4. **World Bank GEM monthly** -- ``CPTOTSAXNZGY`` from the Global Economic
+   Monitor. Monthly back to 2015, key-free, documented, and the same API family
+   as tier 5. It is a World Bank staff calculation and **seasonally adjusted**,
+   so it does not reproduce the headline rate NBS publishes: the right shape for
+   a model feature, the wrong number to quote as an official statistic.
+5. **World Bank annual** -- ``FP.CPI.TOTL.ZG`` for Nigeria. The floor: one
+   observation per year, lagged, and a much weaker demand driver than the
+   monthly series §4 assumes.
 
-The tiers are unioned rather than raced, because they cover different spans: the
-weak-but-long annual series gives the forecaster history from its first run, and
+The tiers are unioned rather than raced, because they cover different spans, and
 any monthly rows that exist take precedence for the months they cover. Every row
 carries the tier that produced it in ``source``, so the dashboard and the memo can
 say where a figure came from instead of implying a precision it does not have.
@@ -53,9 +56,26 @@ WORLD_BANK_URL = (
     "?format=json&per_page=100&date={start}:{end}"
 )
 
+#: Global Economic Monitor indicator CPTOTSAXNZGY = "CPI Price, % y-o-y,
+#: nominal, seas. adj." -- monthly, unlike FP.CPI.TOTL.ZG above.
+#:
+#: ``source=15`` is not optional: GEM indicators live outside the default WDI
+#: source, and without it the API answers "The provided parameter value is not
+#: valid" rather than returning an empty series. GEM dates are also monthly
+#: (``2026M02``), so the date range is expressed that way too.
+WORLD_BANK_GEM_URL = (
+    "https://api.worldbank.org/v2/country/NGA/indicator/CPTOTSAXNZGY"
+    "?source=15&format=json&per_page=500&date={start}M01:{end}M12"
+)
+
 #: How far back to ask the World Bank for. Comfortably longer than any sales
 #: history the forecaster has, and small enough to stay on one response page.
+#: GEM's Nigeria series starts at 2015M01, so this is also its full extent.
 WORLD_BANK_START_YEAR = 2015
+
+#: GEM stamps observations ``2026M02``. Nothing in pandas parses that, so it is
+#: rewritten to a first-of-month date before ``_parse`` ever sees it.
+GEM_MONTH = re.compile(r"^(\d{4})M(\d{2})$")
 
 SEED_PATH = config.SEED_DIR / "inflation.csv"
 
@@ -160,40 +180,100 @@ def _from_cbn() -> pd.DataFrame:
     return pd.DataFrame(columns=COLUMNS)
 
 
-def _from_worldbank() -> pd.DataFrame:
-    """Tier 3: World Bank annual CPI. Stable and key-free, but annual and lagged.
+def _observations(url: str) -> list[dict[str, Any]]:
+    """Non-null observations from a World Bank v2 indicator response.
 
-    Values are anchored to January of their year. Downstream that is correct
-    rather than convenient: ``features/build.py`` forward-fills inflation onto a
-    daily index, so one January observation per year becomes an explicit annual
-    step function instead of a fabricated monthly path.
+    Shared by both World Bank tiers: they differ only in indicator and cadence,
+    and the response envelope and its failure modes are identical.
     """
-    url = WORLD_BANK_URL.format(
-        start=WORLD_BANK_START_YEAR, end=config.today_wat().year
-    )
     response = _http.get(url, headers={"Accept": "application/json"})
     if response is None:
-        return pd.DataFrame(columns=COLUMNS)
+        return []
 
     try:
         payload: Any = response.json()
     except ValueError:
         log.warning("World Bank returned non-JSON (%d bytes)", len(response.content))
-        return pd.DataFrame(columns=COLUMNS)
+        return []
 
     # Success is ``[metadata, [observations]]``; an error is a bare dict or a
     # one-element list, so check the shape rather than trusting the status code.
     if not (isinstance(payload, list) and len(payload) >= 2
             and isinstance(payload[1], list)):
         log.warning("World Bank response had an unexpected shape: %.200s", payload)
-        return pd.DataFrame(columns=COLUMNS)
+        return []
 
-    rows = [
-        {"date": f"{entry['date']}-01-01", "rate": entry["value"]}
+    return [
+        entry
         for entry in payload[1]
         if isinstance(entry, dict)
         and entry.get("value") is not None
         and entry.get("date")
+    ]
+
+
+def _from_worldbank_monthly() -> pd.DataFrame:
+    """Tier 4: World Bank GEM monthly CPI -- the tier that makes §4 work.
+
+    The annual tier below yields one observation per year, and
+    ``features/build.py`` forward-fills inflation onto a daily index, so it
+    becomes a step function that is *constant across most of the training
+    window*. A column that never varies cannot inform a split, which is why the
+    ``inflation`` feature scored ~0 importance. GEM is monthly back to 2015, so
+    the feature finally varies at the cadence §4 assumes.
+
+    The cost is provenance, and it is stated everywhere the figure surfaces.
+    GEM is a **World Bank staff calculation** and **seasonally adjusted**, so it
+    does not reproduce NBS's published headline rate -- the two diverge by
+    roughly 3pp since Nigeria rebased its CPI in January 2025. That makes it a
+    sound model feature and a bad citation, so any tier carrying NBS's own
+    numbers still outranks it.
+    """
+    url = WORLD_BANK_GEM_URL.format(
+        start=WORLD_BANK_START_YEAR, end=config.today_wat().year
+    )
+
+    rows = []
+    for entry in _observations(url):
+        match = GEM_MONTH.match(str(entry["date"]))
+        if match is None:  # an annual or quarterly stamp on a monthly endpoint
+            continue
+        year, month = match.groups()
+        rows.append({"date": f"{year}-{month}-01", "rate": entry["value"]})
+
+    if not rows:
+        log.warning("World Bank GEM returned no monthly CPI observations for NG")
+        return pd.DataFrame(columns=COLUMNS)
+
+    parsed = _parse(pd.DataFrame(rows), "worldbank_gem_monthly")
+    if not parsed.empty:
+        newest = parsed.sort_values("date").iloc[-1]
+        log.info(
+            "World Bank GEM monthly: %d month(s), newest %s = %.2f%% "
+            "(seasonally adjusted -- not NBS's published headline)",
+            len(parsed), newest["date"].date(), newest["rate"],
+        )
+    return parsed
+
+
+def _from_worldbank() -> pd.DataFrame:
+    """Tier 5: World Bank annual CPI. Stable and key-free, but annual and lagged.
+
+    Values are anchored to January of their year. Downstream that is correct
+    rather than convenient: ``features/build.py`` forward-fills inflation onto a
+    daily index, so one January observation per year becomes an explicit annual
+    step function instead of a fabricated monthly path.
+
+    Kept below GEM rather than removed: it is the older, better-known indicator
+    and it answers when GEM does not, which is the whole job of a floor tier.
+    """
+    url = WORLD_BANK_URL.format(
+        start=WORLD_BANK_START_YEAR, end=config.today_wat().year
+    )
+
+    rows = [
+        {"date": f"{entry['date']}-01-01", "rate": entry["value"]}
+        for entry in _observations(url)
     ]
     if not rows:
         log.warning("World Bank returned no non-null CPI observations for NG")
@@ -212,7 +292,7 @@ def _from_worldbank() -> pd.DataFrame:
 
 
 def _from_seed() -> pd.DataFrame:
-    """Tier 4: committed historical series, so day one has some history.
+    """Tier 3: committed historical series, so day one has some history.
 
     Absent by default and deliberately so -- see ``data/seed/README.md``.
     """
@@ -222,8 +302,16 @@ def _from_seed() -> pd.DataFrame:
 
 
 #: Weakest first: ``drop_duplicates(keep="last")`` then lets a better tier
-#: override a weaker one for any month both cover.
-TIERS = (_from_worldbank, _from_seed, _from_cbn, _from_release_url)
+#: override a weaker one for any month both cover. GEM outranks the annual
+#: series because it has the cadence §4 needs, and is outranked in turn by every
+#: tier that carries NBS's own published figures.
+TIERS = (
+    _from_worldbank,
+    _from_worldbank_monthly,
+    _from_seed,
+    _from_cbn,
+    _from_release_url,
+)
 
 
 def fetch() -> pd.DataFrame:
@@ -240,9 +328,10 @@ def fetch() -> pd.DataFrame:
 
     if not frames:
         log.warning(
-            "No inflation data from any tier (release URL, CBN, World Bank, "
-            "seed). The inflation feature will be null; XGBoost splits on "
-            "missing values natively, so this degrades rather than breaks."
+            "No inflation data from any tier (release URL, CBN, seed, World "
+            "Bank GEM monthly, World Bank annual). The inflation feature will be "
+            "null; XGBoost splits on missing values natively, so this degrades "
+            "rather than breaks."
         )
         return pd.DataFrame(columns=COLUMNS)
 
