@@ -31,9 +31,15 @@ project back up.
 | Source | Endpoint | Cadence | Notes |
 |---|---|---|---|
 | CBN FX rates | `https://www.cbn.gov.ng/api/GetAllExchangeRatesGRAPH` | daily | Known flaky; `sources/cbn.py` falls back to the rates HTML page, then to carrying forward the last observation |
-| NBS inflation | https://nigerianstat.gov.ng | monthly | CSV/XLSX release; parser tolerates layout drift |
-| Competitor prices | Jumia, Konga search pages | daily | HTML scrape; selectors are the fragile part |
+| Inflation — tier 1 | `NBS_INFLATION_URL` repo variable | monthly | **Unset by default.** Point it at a live NBS CSV/XLSX release when one exists; the old hard-coded `nigerianstat.gov.ng/resource/csv/cpi.csv` now 404s |
+| Inflation — tier 2 | `https://www.cbn.gov.ng/rates/inflrates.html` | monthly | CBN republishes the NBS CPI series. Right cadence, but rows render client-side, so this usually parses empty |
+| Inflation — tier 3 | `https://api.worldbank.org/v2/country/NG/indicator/FP.CPI.TOTL.ZG?format=json` | annual | No key. Stable and currently the **live** tier — **annual and lagged**, newest value is last calendar year |
+| Inflation — tier 4 | `data/seed/inflation.csv` | — | Backfill, not included. See `data/seed/README.md` |
+| Competitor prices | `data/seed/competitor_prices.csv` | manual | **Marketplace scraping removed** — NTCA 2015 s.15(4) bans online tobacco sale in Nigeria. Cited reference file, header-only; optimizer reports its ceiling `INACTIVE` |
 | Financial news | Punch, Nairametrics, BusinessDay RSS | 2×/day | **Headline + URL + score only.** Bodies are scored in memory and discarded |
+
+`sources/nbs.py` unions the inflation tiers rather than racing them — a better tier wins any
+month it covers — and records which tier produced each row in the `source` column.
 
 ## GitHub Actions secrets
 
@@ -58,6 +64,7 @@ Set with `gh variable set NAME --body value`.
 | Variable | Default | Effect |
 |---|---|---|
 | `FINBERT_MODEL` | `ProsusAI/finbert` | Point at `batestguy/finbert-ng-financial` after Phase 3 to switch the scorer over without a code change |
+| `NBS_INFLATION_URL` | _unset_ | A direct NBS CPI release (CSV or XLSX). Highest-priority inflation tier when set; skipped entirely when not, because a wrong URL fails every run and looks like a network fault |
 | `ALERT_RECIPIENTS_COMMERCIAL` | — | Comma-separated addresses for Commercial Director alerts |
 | `ALERT_RECIPIENTS_SUPPLY` | — | Comma-separated addresses for Supply Chain Manager alerts |
 

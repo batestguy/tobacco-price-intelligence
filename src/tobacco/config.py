@@ -56,7 +56,8 @@ REGIONS: tuple[str, ...] = ("Lagos", "Ibadan", "Kano", "Port Harcourt")
 #: manufacturer's portfolio in a public repo would imply data we do not have.
 SKUS: tuple[str, ...] = ("PREMIUM_20", "MIDRANGE_20", "VALUE_20")
 
-#: Competitor brands tracked on marketplaces (INTRO.txt §1).
+#: Competitor brands tracked (INTRO.txt §1). Prices for these come from the cited
+#: reference file, not a scrape -- see sources/competitors.py.
 COMPETITOR_BRANDS: tuple[str, ...] = ("Bohem", "Time", "Gold Mount")
 
 #: Unit production cost per pack (NGN), used by the optimizer's margin floor.

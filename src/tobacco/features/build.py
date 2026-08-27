@@ -79,8 +79,9 @@ def _daily_exog(start: date, end: date) -> pd.DataFrame:
         exog["inflation"] = series.reindex(index).ffill()
 
     # --- competitor price index ---------------------------------------------
-    # Marketplace listings are national and intermittent, so the index is a
-    # simple cross-brand mean carried forward between observations.
+    # Cited reference prices are national and sparse (see sources/competitors.py),
+    # so the index is a simple cross-brand mean carried forward between
+    # observations -- and stays NaN entirely when none have been recorded.
     competitors = parquet_io.read("competitor_prices")
     if competitors.empty:
         exog["competitor_index"] = np.nan

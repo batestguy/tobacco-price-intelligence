@@ -41,8 +41,10 @@ create table if not exists inflation (
 create table if not exists competitor_prices (
     date          date not null,
     brand         text not null,
-    region        text not null,    -- 'National' for marketplace listings
-    source        text not null,    -- jumia | konga
+    region        text not null,    -- 'National' unless a survey breaks out by region
+    -- The citation for the quote. Marketplace scraping was removed (CLAUDE.md
+    -- departure 4, NTCA 2015 s.15(4)); rows now come from data/seed/competitor_prices.csv.
+    source        text not null,
     price         numeric not null,
     product_title text,
     url           text,

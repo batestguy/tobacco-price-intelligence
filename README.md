@@ -20,7 +20,7 @@ business constraints.
 
 | Stage | What happens | Where it runs |
 |---|---|---|
-| Ingest | CBN FX rates, NBS inflation, marketplace competitor prices, news headlines | GitHub Actions, 2×/day |
+| Ingest | CBN FX rates, Nigerian inflation, cited competitor prices, news headlines | GitHub Actions, 2×/day |
 | Score | FinBERT (financial news) + VADER (social) on CPU | GitHub Actions |
 | Forecast | XGBoost — weekly demand per SKU per region, 4-week horizon | GitHub Actions, weekly |
 | Optimize | SciPy `linprog` — price selection + inventory rebalancing | GitHub Actions, daily |

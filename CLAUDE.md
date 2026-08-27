@@ -68,7 +68,7 @@ Workflows invoke jobs as modules with `PYTHONPATH=src`, e.g. `python -m tobacco.
 
 `INTRO.txt` is the original spec and is preserved verbatim. It is authoritative on *what the
 system should do* — the §2 schema, §4 features, §5 constraints, §7 alert rules, §10 prompt,
-§11 disclaimer. It is out of date on *where things run*. These three departures are settled;
+§11 disclaimer. It is out of date on *where things run*. These four departures are settled;
 do not "fix" the code back toward the spec:
 
 1. **§3 option C — HF Inference API "1000 requests/day" no longer exists.** The free tier is
@@ -81,6 +81,24 @@ do not "fix" the code back toward the spec:
    is the spec's own fallback (§6 option C).
 3. **§14's local-first build order** assumes a workstation. Build order is unchanged in
    substance; the execution target is Actions.
+4. **§1's marketplace competitor scraping is removed.** Jumia/Konga scraping is gone from
+   `sources/competitors.py` and will not be restored. Jumia 403s the runner and the obvious
+   fix — a browser User-Agent and slower pacing — means defeating bot detection to collect
+   listings that **s.15(4) of the National Tobacco Control Act 2015 prohibits**: the online
+   sale of tobacco products in Nigeria. That is the same Act the §11 disclaimer cites
+   verbatim, so a price ceiling derived from those listings contradicts the project's own
+   stated legal framework. Weak enforcement is also why the listings are sporadic and
+   unrepresentative — bad data, not just awkward data. The replacement is a cited, dated
+   reference file (`data/seed/competitor_prices.csv`), header-only until someone records a
+   citable survey. **The `competitor_prices` dataset and §2 schema are unchanged**, and
+   `optimize/linprog.py` already reports its ceiling `INACTIVE` when there is no competitor
+   data — do not add a fallback that invents one.
+
+   Relatedly, §1's NBS CSV endpoint is dead (404) and NBS has no stable machine-readable
+   release. `sources/nbs.py` degrades `NBS_INFLATION_URL` → CBN monthly → **World Bank annual**
+   → seed, tagging each row's tier in `source`. NBS is still the origin of the figures; it is
+   just not reachable directly. Expect the World Bank tier to serve today, which means
+   inflation is **annual and lagged** — say so rather than letting it look monthly.
 
 Everything must stay on a **free tier** — a paid dependency breaks the project's premise.
 

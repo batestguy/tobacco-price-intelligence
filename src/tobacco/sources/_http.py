@@ -1,9 +1,9 @@
 """Shared HTTP session with retries.
 
 The Nigerian sources this project reads are collectively unreliable: the CBN API
-intermittently times out, NBS occasionally serves a 502, and the marketplaces
-rate-limit. A bare ``requests.get`` would turn any of those into a failed
-workflow run, so everything goes through a session with bounded backoff.
+intermittently times out, its rates pages 502, and news RSS feeds drop out. A
+bare ``requests.get`` would turn any of those into a failed workflow run, so
+everything goes through a session with bounded backoff.
 """
 
 from __future__ import annotations
