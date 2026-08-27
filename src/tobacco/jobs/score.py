@@ -17,7 +17,7 @@ import pandas as pd
 
 from tobacco import config
 from tobacco.nlp import finbert, vader
-from tobacco.store import parquet_io, supabase_io
+from tobacco.store import parquet_io
 
 log = config.setup_logging("score")
 
@@ -45,7 +45,6 @@ def score_news() -> int:
     batch["scored_at"] = pd.Timestamp(config.now_wat().replace(tzinfo=None))
 
     parquet_io.upsert("news_articles", batch)
-    supabase_io.mirror("news_articles", batch, ("id",))
     return len(batch)
 
 
@@ -100,7 +99,6 @@ def build_aggregates() -> pd.DataFrame:
         return aggregates
 
     parquet_io.upsert("sentiment_aggregates", aggregates)
-    supabase_io.mirror("sentiment_aggregates", aggregates, ("date",))
     log.info("Aggregates: %d day(s) updated", len(aggregates))
     return aggregates
 
@@ -112,13 +110,12 @@ def run() -> int:
         aggregates = build_aggregates()
     except Exception as exc:  # noqa: BLE001
         log.exception("Scoring failed: %s", exc)
-        supabase_io.log_event("score", "error", str(exc))
         return 1
 
-    supabase_io.log_event(
-        "score", "ok", f"{scored} headlines, {len(aggregates)} aggregate day(s)"
+    log.info(
+        "Scoring complete: %d headline(s), %d aggregate day(s)",
+        scored, len(aggregates),
     )
-    log.info("Scoring complete")
     return 0
 
 

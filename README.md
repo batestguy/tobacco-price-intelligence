@@ -39,16 +39,21 @@ GitHub repo (public) ── code · versioned Parquet · small model artifacts �
         │    scrape 2×/day · FinBERT+VADER CPU scoring · weekly retrain
         │    · daily forecast + optimize · alerts · commits data back to the repo
         │
-        ├─ Supabase (free)   serving layer + Auth for dashboard roles
+        ├─ Supabase (free)   Auth only — login and dashboard role lookup
         ├─ Hugging Face Hub  fine-tuned transformer weights (100 GB free quota)
         ├─ Kaggle (free)     T4 GPU, transfer learning only
         └─ Streamlit Cloud   dashboard, auto-redeploys on push
 ```
 
-**The repo is the source of truth; Supabase is the serving layer.** Every dataset is
-written as month-partitioned Parquet under `data/curated/` and committed by the Actions
-bot, then upserted into Postgres for the dashboard to query. If Supabase is ever lost,
-the full history is reproducible from git.
+**The repo is the whole data layer.** Every dataset is written as month-partitioned
+Parquet under `data/curated/` and committed by the Actions bot, and the dashboard reads
+those files straight out of its own checkout. There is no database in the read path, so
+there is no second copy to drift, and the full history is whatever git says it is.
+
+Supabase used to hold a mirror of every table. Nothing ever read it — the dashboard was
+always reading Parquet — so the mirror was removed along with two of the six Actions
+secrets. Supabase now does one job: authenticating the dashboard and looking up the
+signed-in user's role.
 
 ## Repository layout
 
@@ -63,11 +68,11 @@ src/tobacco/
   optimize/linprog.py SciPy optimizer + the four business constraints
   alerts/email.py     Gmail SMTP, the four trigger rules
   memo/groq.py        Llama 3.3 70B memo generation
-  store/              parquet_io.py (repo truth) · supabase_io.py (serving)
+  store/parquet_io.py month-partitioned Parquet — the data layer
   jobs/               entrypoints invoked by the workflows
 data/curated/         month-partitioned Parquet, committed by Actions
 models/               XGBoost joblib + metrics.json
-supabase/schema.sql   the database contract
+supabase/schema.sql   the `users` role table behind dashboard Auth
 notebooks/            Kaggle transfer-learning notebook
 app/streamlit_app.py  dashboard
 REGISTRY.md           index of every external resource, URL and secret
@@ -94,7 +99,9 @@ reference index of every external service, endpoint and secret name.
   is still used, for fine-tuned weights.
 - **Git LFS is deliberately not used.** Its 1 GB/month bandwidth quota is consumed by every
   Actions checkout. Artifacts too large for git go to HF Hub or GitHub Releases.
-- **Supabase free pauses after 7 days idle** — the twice-daily cron incidentally keeps it warm.
+- **Supabase free pauses after 7 days idle.** Nothing in the pipeline touches it any more, so
+  a project left alone for a week stops accepting logins until it is resumed by hand. No data
+  is at stake — only the `users` role table lives there.
 - **Streamlit Community Cloud** = 1 GB RAM, sleeps after 12 idle hours, unlimited public apps.
 - **Kaggle** = 30 h/week of T4 GPU with background execution — the transfer-learning surface.
 
@@ -110,9 +117,10 @@ Act 2015** and **WHO FCTC Article 5.3**, verbatim in its footer and on the login
 
 Two constraints follow from the repo being public and are enforced in code:
 
-- **No full article text is ever committed.** `newspaper3k` returns article bodies; those are
-  used in memory for scoring and discarded. Only headline, URL, source, timestamp and score
-  are persisted — `store/parquet_io.py` strips body-like columns unconditionally.
+- **No full article text is ever committed.** RSS entries arrive carrying `summary` and
+  `content` fields that hold article body; those are never persisted. Only headline, URL,
+  source, timestamp and score are — `store/parquet_io.py` strips body-like columns
+  unconditionally.
 - **No secrets and no real company data.** All credentials live in GitHub Actions secrets and
   Streamlit Cloud secrets; sales data is synthetic.
 

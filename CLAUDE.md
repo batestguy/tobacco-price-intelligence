@@ -27,7 +27,7 @@ execution path and must not be referenced in workflows, docs, or setup instructi
 Local  ──push──▶  GitHub repo (public)  ──▶ Actions = the compute engine
                         │                     scrape · score · train · recommend
                         │                     commits data back to the repo
-                        ├─ Supabase        serving layer + Auth
+                        ├─ Supabase        Auth only — login + `users` role lookup
                         ├─ HF Hub          fine-tuned weights (100 GB free)
                         ├─ Kaggle          T4 GPU, transfer learning only
                         └─ Streamlit Cloud dashboard, redeploys on push
@@ -35,9 +35,12 @@ Local  ──push──▶  GitHub repo (public)  ──▶ Actions = the comput
 
 Repo: `batestguy/tobacco-price-intelligence`, **public**.
 
-**The repo is the source of truth; Supabase is the serving layer.** Each job writes
-month-partitioned Parquet to `data/curated/`, commits it, *then* upserts to Postgres. Both
-writes are idempotent. If the two ever disagree, Parquet wins and Supabase is rebuilt from it.
+**The repo is the data layer, and there is no database in the read path.** Each job writes
+month-partitioned Parquet to `data/curated/` and commits it; the dashboard reads those files
+straight out of its Streamlit Cloud checkout (`app/data.py`). Every write is an idempotent
+upsert keyed on the dataset's natural key.
+
+Do not reintroduce a database mirror. One existed and nothing ever read it — see departure 5.
 
 ## Layout
 
@@ -52,11 +55,11 @@ src/tobacco/
   optimize/linprog.py SciPy optimizer + the four §5 constraints
   alerts/email.py     Gmail SMTP, the four §7 rules
   memo/groq.py        §10 prompt template, verbatim
-  store/              parquet_io.py (repo truth) · supabase_io.py (serving)
+  store/parquet_io.py month-partitioned Parquet — the data layer, and `DATASETS`
   jobs/               scrape · score · train · recommend — the workflow entrypoints
 data/curated/         month-partitioned Parquet, committed by the Actions bot
 models/               XGBoost joblib + metrics.json (small artifacts only)
-supabase/schema.sql   database contract
+supabase/schema.sql   the `users` role table behind dashboard Auth — nothing else
 app/streamlit_app.py  dashboard
 notebooks/            Kaggle transfer-learning notebook
 REGISTRY.md           every external resource, URL and secret name in one place
@@ -68,7 +71,7 @@ Workflows invoke jobs as modules with `PYTHONPATH=src`, e.g. `python -m tobacco.
 
 `INTRO.txt` is the original spec and is preserved verbatim. It is authoritative on *what the
 system should do* — the §2 schema, §4 features, §5 constraints, §7 alert rules, §10 prompt,
-§11 disclaimer. It is out of date on *where things run*. These four departures are settled;
+§11 disclaimer. It is out of date on *where things run*. These five departures are settled;
 do not "fix" the code back toward the spec:
 
 1. **§3 option C — HF Inference API "1000 requests/day" no longer exists.** The free tier is
@@ -100,19 +103,39 @@ do not "fix" the code back toward the spec:
    just not reachable directly. Expect the World Bank tier to serve today, which means
    inflation is **annual and lagged** — say so rather than letting it look monthly.
 
+5. **§2's serving layer is gone, and with it the `logs` table.** Every job used to write
+   Parquet and then mirror the same rows into Supabase Postgres. **Nothing ever read them.**
+   `app/data.py` has always read the committed Parquet from the Streamlit Cloud checkout, and
+   the mirror's own `select()` had zero callers — it was a write-only copy of data the public
+   repo already publishes. Removing it took the Actions secrets from six to four.
+
+   The §2 *data model* is unchanged; it just lives where it was always enforced, in
+   `store/parquet_io.py` `DATASETS` plus each source module's `COLUMNS`. `schema.sql` now
+   holds only `users`, which Auth reads.
+
+   `logs` went with it: writing it needed the service key, and every event it recorded is
+   already in the Actions run log (`gh run view --log`, retained 90 days). Failures log and
+   the job's exit code carries the signal — do not add a second copy in a database.
+
+   **Supabase is Auth and nothing else.** Do not make it a data store again, and note the
+   consequence: nothing keeps the free project awake now, so it pauses after 7 idle days and
+   logins fail until it is resumed by hand.
+
 Everything must stay on a **free tier** — a paid dependency breaks the project's premise.
 
 ## What must never be committed
 
 The repo is public, so these are correctness issues, not hygiene preferences.
 
-- **No full article text.** `newspaper3k` returns article bodies; committing them would
-  republish copyrighted Nigerian news content. Persist **headline + URL + source +
-  timestamp + score only**. The body is scored in memory and discarded.
-  `store/parquet_io.py` strips body-like columns unconditionally — do not weaken that guard,
-  and do not add a column that carries article text under another name.
-- **No secrets.** All six credentials live in GitHub Actions secrets and (separately)
-  Streamlit Cloud secrets. Never a literal key in code, a committed `.env`, or a workflow
+- **No full article text.** Committing article bodies would republish copyrighted Nigerian
+  news content. Persist **headline + URL + source + timestamp + score only**. Nothing fetches
+  an article page — the live risk is `feedparser`, whose entries carry `summary` and
+  `content` holding body text, so a frame built from an entry wholesale would sweep them in.
+  `store/parquet_io.py` `NEVER_PERSIST` lists both and strips body-like columns
+  unconditionally — do not weaken that guard, and do not add a column that carries article
+  text under another name.
+- **No secrets.** All four credentials live in GitHub Actions secrets, and Streamlit Cloud's
+  two are set separately in its own dashboard. Never a literal key in code, a committed `.env`, or a workflow
   `echo` that would print one into a public log.
 - **No real company data.** Sales are synthetic (`sources/sales_mock.py`). This is what lets
   the repo be public at all.
@@ -144,18 +167,22 @@ Each of these silently breaks the pipeline rather than failing loudly:
   commits keep the repo active — that is a second reason the commit-back step matters.
 - **Every workflow needs `workflow_dispatch`** so it can be triggered without waiting for cron.
 - Jobs that commit need `permissions: contents: write`.
-- **Streamlit Cloud has its own secrets**, set in its dashboard, not inherited from GitHub. It
-  gets the Supabase **anon** key — never the service key. The app is publicly reachable.
+- **Streamlit Cloud has its own secrets**, set in its dashboard, not inherited from GitHub.
+  `SUPABASE_URL` and `SUPABASE_ANON_KEY` are set there and *only* there — no workflow needs
+  them, and the `service_role` key is not used by this project at all. The app is publicly
+  reachable and the anon key ships to the browser session.
 
 ## Data model
 
-The Supabase schema (`supabase/schema.sql`, from `INTRO.txt` §2) is the contract between the
-scraper, NLP, ML, and dashboard layers — change it deliberately, and mirror any change in the
-Parquet writers:
+`store/parquet_io.py` `DATASETS` is the contract between the scraper, NLP, ML, and dashboard
+layers — it declares each dataset's upsert key and partition column. The columns themselves
+are each source module's `COLUMNS`. Change either deliberately; `supabase/schema.sql` no
+longer carries a second copy to keep in step (departure 5).
 
 `exchange_rates` · `inflation` · `competitor_prices` · `news_articles` (with `finbert_score`) ·
-`social_posts` (with `vader_score`) · `sentiment_aggregates` · `sales_mock` ·
-`recommendations` · `users` · `logs`
+`social_posts` (with `vader_score`) · `sentiment_aggregates` · `sales_mock` · `recommendations`
+
+`INTRO.txt` §2 remains authoritative on what those datasets should contain.
 
 ## Regulatory constraint
 
@@ -165,6 +192,13 @@ citing the **National Tobacco Control Act 2015** and **WHO FCTC Article 5.3**, a
 data is aggregated and anonymized with no individual consumer data stored. That text is
 carried verbatim in `app/streamlit_app.py` — keep it verbatim, and keep the design consistent
 with it.
+
+The dashboard login serves §6's role-based views and §11's "authorized personnel only"
+framing. It is **not** a confidentiality boundary, and nothing in the repo may claim it is:
+the app renders Parquet committed to a public repo, so every figure behind the login is
+already world-readable with no credential. Sales are synthetic and the rest is public macro
+data, so there is nothing confidential to protect. RLS covers `users` — role assignments —
+and that is the whole of what it protects.
 
 Because the repo is public, `README.md` additionally frames the project as an **independent
 portfolio / educational demonstration** using synthetic sales data, **not affiliated with or

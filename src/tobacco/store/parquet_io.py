@@ -1,4 +1,7 @@
-"""Month-partitioned Parquet under ``data/curated/`` -- the source of truth.
+"""Month-partitioned Parquet under ``data/curated/`` -- the project's data layer.
+
+There is no database behind this. The jobs write here, the Actions bot commits the
+files, and the dashboard reads them back out of its own checkout.
 
 Two properties matter here and both are load-bearing:
 
@@ -27,11 +30,16 @@ log = logging.getLogger(__name__)
 
 #: Columns that must never reach the repository, whatever a caller passes.
 #:
-#: The repo is public. Committing ``newspaper3k``'s article bodies would
-#: republish copyrighted Nigerian news content, and committing forum post text
-#: would store individual consumer data that INTRO.txt §11 says we do not keep.
-#: Scoring uses these in memory; persistence drops them. This is a backstop --
-#: callers are expected not to pass them in the first place.
+#: The repo is public. Committing article bodies would republish copyrighted
+#: Nigerian news content, and committing forum post text would store individual
+#: consumer data that INTRO.txt §11 says we do not keep. Scoring uses these in
+#: memory; persistence drops them. This is a backstop -- callers are expected not
+#: to pass them in the first place.
+#:
+#: The live risk is ``feedparser``: its entries carry ``summary`` and ``content``
+#: holding article text, so a caller that built a frame from an entry wholesale
+#: would sweep them in. Both are listed below, which is what makes this guard
+#: more than decoration.
 NEVER_PERSIST = frozenset(
     {"body", "text", "content", "article_text", "full_text", "summary",
      "author", "username", "user", "raw_html"}
@@ -46,7 +54,9 @@ class Dataset:
     ts: str  # column that determines the month partition
 
 
-#: The dataset registry. Mirrors supabase/schema.sql -- change both together.
+#: The dataset registry, and with each source module's ``COLUMNS`` the place the
+#: INTRO.txt §2 data model is actually enforced. Supabase no longer carries a copy
+#: of these tables (CLAUDE.md departure 5), so this is the single definition.
 DATASETS: dict[str, Dataset] = {
     "exchange_rates": Dataset(keys=("date",), ts="date"),
     "inflation": Dataset(keys=("date",), ts="date"),

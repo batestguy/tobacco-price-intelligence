@@ -3,9 +3,11 @@
 Secrets are *only* ever read from the environment. Nothing here has a real
 default value and nothing is read from a committed file -- the repo is public.
 
-Jobs call ``require_all()`` at start-up so a misconfigured workflow fails on line
-one with a list of everything that is missing, rather than 300 lines later with an
-``AuthApiError`` that says nothing useful.
+Every secret is optional to *some* job, so nothing is validated at import time.
+``require`` raises at the point of use; ``require_all`` is available for a caller
+that wants a misconfiguration reported as one list rather than one failure at a
+time. Nothing currently uses it -- the remaining secrets are each read by a single
+non-fatal stage.
 """
 
 from __future__ import annotations

@@ -2,13 +2,12 @@
 
 Reads the **committed Parquet** in ``data/curated/``. Streamlit Community Cloud
 checks the repository out to run the app, so the repo's own copy of the data is
-already on local disk -- no database round trip, no service key, and the
-dashboard keeps working before Supabase is provisioned or while the free-tier
-project is paused.
+already on local disk -- no database round trip and no key of any kind.
 
-That also matches the architecture: the repo is the source of truth and Supabase
-is a serving convenience, so reading the truth directly is the simpler path, not
-a fallback.
+This is the only read path there has ever been. Supabase once held a mirror of
+every table that nothing queried; it was removed (CLAUDE.md departure 5) and
+Supabase now serves Auth alone. A paused free-tier project therefore costs the
+login, never the data.
 """
 
 from __future__ import annotations

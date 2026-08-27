@@ -60,8 +60,6 @@ jobs:
       - name: Score headlines
         env:
           PYTHONPATH: src
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           FINBERT_MODEL: ${{ vars.FINBERT_MODEL }}
           # Silence the tokenizers fork warning that otherwise fills the log.

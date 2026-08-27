@@ -11,7 +11,7 @@ project back up.
 | Service | Purpose | Free-tier limit that matters | URL |
 |---|---|---|---|
 | GitHub | Code, versioned data, **all compute** | Actions unmetered on public repos | https://github.com/batestguy/tobacco-price-intelligence |
-| Supabase | Postgres serving layer + Auth | 500 MB; **pauses after 7 days idle** | https://supabase.com/dashboard |
+| Supabase | Dashboard **Auth only** (login + `users` role lookup) | 500 MB; **pauses after 7 days idle**, and nothing keeps it warm | https://supabase.com/dashboard |
 | Streamlit Community Cloud | Dashboard hosting | 1 GB RAM; sleeps after 12 h idle | https://share.streamlit.io |
 | Groq | Llama 3.3 70B memo generation | ~1000 req/day, 12k tokens/min | https://console.groq.com |
 | Hugging Face | Fine-tuned model weights | 100 GB Hub storage | https://huggingface.co/batestguy |
@@ -48,8 +48,6 @@ where it would land in shell history).
 
 | Secret | Used by | Where to get it |
 |---|---|---|
-| `SUPABASE_URL` | all jobs | Supabase → Project Settings → API → Project URL |
-| `SUPABASE_SERVICE_KEY` | all jobs | Supabase → Project Settings → API → `service_role` key. **Server-side only. Never give this to Streamlit.** |
 | `GROQ_API_KEY` | recommend | Groq console → API Keys |
 | `GMAIL_ADDRESS` | recommend | The sending Gmail account |
 | `GMAIL_APP_PASSWORD` | recommend | Google Account → Security → App passwords (requires 2FA) |
@@ -78,8 +76,11 @@ SUPABASE_URL = "https://<project>.supabase.co"
 SUPABASE_ANON_KEY = "<anon key, NOT the service key>"
 ```
 
-The app is publicly reachable, so it gets the **anon** key only, and relies on Supabase Auth
-plus row-level security for access control.
+The app is publicly reachable, so it gets the **anon** key only. Note what the login is and
+is not: it routes users to their role's views (§6) and satisfies §11's "authorized personnel
+only" framing, but it is **not** a confidentiality boundary — the dashboard renders Parquet
+committed to a public repo, so every figure behind it is already world-readable. The RLS
+policy in `schema.sql` covers `users`, keeping a session from reading other people's roles.
 
 ## Setup
 
@@ -87,8 +88,9 @@ The full runbook, with what breaks if you skip each step, is in
 [SETUP.md](SETUP.md). In short:
 
 1. `gh repo create ... --public --source=. --push`
-2. Create the Supabase project; run `supabase/schema.sql` in the SQL editor.
-3. `gh secret set` the six secrets above.
+2. Create the Supabase project; run `supabase/schema.sql` in the SQL editor. Auth only — its
+   URL and anon key go to Streamlit in step 5, not to Actions.
+3. `gh secret set` the four secrets above.
 4. `gh workflow run scrape.yml` — confirm a Parquet file is committed by the Actions bot.
 5. Deploy `app/streamlit_app.py` on Streamlit Cloud; add its two secrets separately.
 6. Record the resulting dashboard URL in the table above.
@@ -97,7 +99,7 @@ The full runbook, with what breaks if you skip each step, is in
 
 | Workflow | Schedule (UTC) | Local time (WAT = UTC+1) | Does |
 |---|---|---|---|
-| `scrape.yml` | `0 5,17 * * *` | 06:00, 18:00 | FX, inflation, competitors, news → Parquet + Supabase |
+| `scrape.yml` | `0 5,17 * * *` | 06:00, 18:00 | FX, inflation, competitors, news → Parquet |
 | `score.yml` | after scrape (`workflow_run`) | — | FinBERT + VADER on CPU → scores + aggregates |
 | `train.yml` | `0 23 * * 6` | Sun 00:00 | Rebuild features, retrain XGBoost, commit model + metrics |
 | `recommend.yml` | `0 7 * * *` | 08:00 | Forecast → optimize → recommendations → alerts → memo |

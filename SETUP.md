@@ -30,21 +30,30 @@ gh repo view batestguy/tobacco-price-intelligence
 
 ---
 
-## Step 1 — Supabase
+## Step 1 — Supabase (dashboard login only)
 
-Free tier: 500 MB Postgres. **It pauses after 7 days of inactivity** — the
-twice-daily cron incidentally keeps it awake.
+Supabase is used for **Auth and nothing else**. No pipeline data goes near it:
+the jobs write Parquet to the repo and the dashboard reads that Parquet out of
+its own checkout. `schema.sql` is correspondingly small — one `users` table
+holding role assignments, keyed off `auth.users`.
 
 1. Create a project at [supabase.com/dashboard](https://supabase.com/dashboard).
 2. Open **SQL Editor**, paste the whole of [`supabase/schema.sql`](supabase/schema.sql),
    run it. It is safe to re-run.
 3. Collect from **Project Settings → API**:
    - Project URL → `SUPABASE_URL`
-   - `service_role` key → `SUPABASE_SERVICE_KEY` (server-side only, never the app)
-   - `anon` key → used later, in Streamlit only
+   - `anon` key → `SUPABASE_ANON_KEY`
 
-**If you skip this:** jobs still run and still commit Parquet to the repo — that
-is the source of truth. You lose the live serving layer and dashboard auth.
+   Both are for **Streamlit only** (Step 4). No GitHub Actions secret needs
+   them, and the `service_role` key is not used by this project at all.
+
+**If you skip this:** the entire pipeline still runs and still commits Parquet.
+The only thing you lose is dashboard login — the app renders
+"Authentication is not configured" and shows nothing past it.
+
+Free tier: 500 MB Postgres, **paused after 7 days of inactivity**. Nothing in the
+pipeline keeps it awake any more, so expect to resume it by hand if logins start
+failing after a quiet week.
 
 ---
 
@@ -56,8 +65,6 @@ would land in your shell history.
 ```bash
 cd "D:\Tobacco Project"
 
-gh secret set SUPABASE_URL
-gh secret set SUPABASE_SERVICE_KEY
 gh secret set GROQ_API_KEY
 gh secret set GMAIL_ADDRESS
 gh secret set GMAIL_APP_PASSWORD
@@ -66,8 +73,6 @@ gh secret set HF_TOKEN
 
 | Secret | Where to get it | If missing |
 |---|---|---|
-| `SUPABASE_URL` | Supabase → Settings → API → Project URL | No Supabase mirror |
-| `SUPABASE_SERVICE_KEY` | same page → `service_role` | No Supabase mirror |
 | `GROQ_API_KEY` | [console.groq.com](https://console.groq.com) → API Keys | Memo prints the raw figures instead of prose |
 | `GMAIL_ADDRESS` | the sending Gmail account | Alerts evaluate and log, but send nothing |
 | `GMAIL_APP_PASSWORD` | Google Account → Security → **App passwords** (needs 2FA on first) | as above |
@@ -189,7 +194,7 @@ Only worth doing once the scrapers have accumulated a few months of headlines.
 |---|---|---|
 | GitHub Actions | unmetered on **public** repos | going private starts a 2,000 min/month clock |
 | Scheduled workflows | auto-disabled after **60 days** of repo inactivity | the daily data commits prevent this |
-| Supabase | 500 MB; **pauses after 7 days idle** | the cron keeps it warm |
+| Supabase | 500 MB; **pauses after 7 days idle** | logins stop until you resume it; no data lost — it holds only `users` |
 | Streamlit Cloud | 1 GB RAM; sleeps after 12 h idle | keep `requirements.txt` lean — no torch |
 | Groq | ~1000 req/day | one memo/day is nothing |
 | Gmail SMTP | 100 emails/day | at most 4 alerts/day |

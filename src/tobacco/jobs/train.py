@@ -15,7 +15,7 @@ import pandas as pd
 from tobacco import config
 from tobacco.models import train_xgb
 from tobacco.sources import sales_mock
-from tobacco.store import parquet_io, supabase_io
+from tobacco.store import parquet_io
 
 log = config.setup_logging("train")
 
@@ -52,7 +52,6 @@ def ensure_sales_history() -> int:
         return 0
 
     parquet_io.upsert("sales_mock", frame)
-    supabase_io.mirror("sales_mock", frame, ("week_start", "sku", "region"))
     return len(frame)
 
 
@@ -64,14 +63,12 @@ def run() -> int:
         metrics = train_xgb.train()
     except Exception as exc:  # noqa: BLE001
         log.exception("Training failed: %s", exc)
-        supabase_io.log_event("train", "error", str(exc))
         return 1
 
-    supabase_io.log_event(
-        "train", "ok",
-        f"RMSE {metrics['rmse']:.0f}, MAPE {metrics['mape_pct']:.2f}%",
+    log.info(
+        "Training complete: RMSE %.0f, MAPE %.2f%%",
+        metrics["rmse"], metrics["mape_pct"],
     )
-    log.info("Training complete")
     return 0
 
 

@@ -1,9 +1,17 @@
 """Supabase Auth for the Streamlit dashboard (INTRO.txt §6).
 
+**Login is view routing, not a confidentiality boundary.** Say so plainly rather
+than implying protection the system does not provide: the dashboard reads the
+Parquet committed in its own checkout, and that repository is public, so every
+figure behind this login is already world-readable with no credential. Sales are
+synthetic and everything else is public macro data, so there is nothing
+confidential to protect in the first place. What the login buys is the role-based
+views of §6 and consistency with §11's "authorized personnel only" framing.
+
 The app is deployed publicly on Streamlit Community Cloud, so the URL is not a
-secret and cannot be treated as one. Nothing is rendered before a successful
-login, and the app holds only the Supabase **anon** key -- row level security in
-``supabase/schema.sql`` is what actually enforces access.
+secret either, and it holds only the Supabase **anon** key. Row level security in
+``supabase/schema.sql`` covers the one table this module reads -- ``users`` --
+which keeps a session from enumerating other people's role assignments.
 
 The spec's §6 mentions ``dash-auth`` as an alternative. That is a static
 user:password dict compiled into the app, which on a public repo would mean

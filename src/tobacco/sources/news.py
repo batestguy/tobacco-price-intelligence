@@ -2,13 +2,15 @@
 
 **Headlines only, by design.** The spec's §2 schema stores
 ``news_articles(id, headline, url, timestamp, finbert_score)`` -- no body -- and
-that is also what the public repo permits: committing ``newspaper3k``'s extracted
-article text would republish copyrighted Nigerian news content. FinBERT scores
-the headline, which is the standard framing for financial sentiment anyway
-(Financial PhraseBank, the corpus FinBERT is tuned on, is sentence-level).
+that is also what the public repo permits: committing extracted article text
+would republish copyrighted Nigerian news content. FinBERT scores the headline,
+which is the standard framing for financial sentiment anyway (Financial
+PhraseBank, the corpus FinBERT is tuned on, is sentence-level).
 
-``newspaper3k`` is therefore used narrowly: only to recover a headline or publish
-date for a feed entry that lacks one. Its ``.text`` is never read.
+Nothing here fetches an article page. ``feedparser`` alone supplies the headline,
+URL and publish date, and the fields it also carries that *do* hold article text
+(``summary``, ``content``) are never put into the frame. The ``NEVER_PERSIST``
+guard in ``store.parquet_io`` is the backstop for that.
 """
 
 from __future__ import annotations

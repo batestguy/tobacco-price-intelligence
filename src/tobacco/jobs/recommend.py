@@ -19,7 +19,7 @@ from tobacco.alerts import email
 from tobacco.memo import groq
 from tobacco.models import predict
 from tobacco.optimize import linprog
-from tobacco.store import parquet_io, supabase_io
+from tobacco.store import parquet_io
 
 log = config.setup_logging("recommend")
 
@@ -101,14 +101,11 @@ def run() -> int:
         recommendations = linprog.to_recommendations(result, forecast)
 
         parquet_io.upsert("recommendations", recommendations)
-        supabase_io.mirror("recommendations", recommendations, ("date", "sku", "region"))
     except predict.ModelNotTrained as exc:
         log.error("%s", exc)
-        supabase_io.log_event("recommend", "error", str(exc))
         return 1
     except Exception as exc:  # noqa: BLE001
         log.exception("Recommendation failed: %s", exc)
-        supabase_io.log_event("recommend", "error", str(exc))
         return 1
 
     for note in result.notes:
@@ -163,12 +160,10 @@ def run() -> int:
     except Exception as exc:  # noqa: BLE001
         log.error("Memo generation failed (recommendations are already saved): %s", exc)
 
-    supabase_io.log_event(
-        "recommend", "ok",
-        f"{len(recommendations)} recommendation(s), "
-        f"{result.overall_adjustment_pct:+.2f}% overall",
+    log.info(
+        "Recommendation complete: %d recommendation(s), %+.2f%% overall",
+        len(recommendations), result.overall_adjustment_pct,
     )
-    log.info("Recommendation complete")
     return 0
 
 

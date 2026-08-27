@@ -344,7 +344,8 @@ def main() -> None:
         st.divider()
         labels = [label for label, _ in available]
         # Route guarding is by construction: a role's views are the only ones
-        # reachable, and RLS blocks the underlying data regardless.
+        # reachable. That is presentation, not access control -- the underlying
+        # data is committed to a public repo (see app/auth.py).
         chosen = st.radio("View", labels, label_visibility="collapsed") if len(labels) > 1 else labels[0]
         st.divider()
         if st.button("Sign out"):

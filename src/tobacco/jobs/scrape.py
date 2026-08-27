@@ -1,4 +1,4 @@
-"""Collect every source, commit to Parquet, mirror to Supabase (INTRO.txt §9 step 1).
+"""Collect every source and commit to Parquet (INTRO.txt §9 step 1).
 
 Runs twice daily. One unreachable source must not cost us the others, so each is
 collected independently and a failure is logged and stepped over. The job only
@@ -16,7 +16,7 @@ import pandas as pd
 
 from tobacco import config
 from tobacco.sources import cbn, competitors, nbs, news, social
-from tobacco.store import parquet_io, supabase_io
+from tobacco.store import parquet_io
 
 log = config.setup_logging("scrape")
 
@@ -25,17 +25,14 @@ log = config.setup_logging("scrape")
 class Source:
     name: str          # dataset name, per parquet_io.DATASETS
     fetch: Callable[[], pd.DataFrame]
-    table: str         # Supabase table
-    conflict: tuple[str, ...]  # upsert key
 
 
 SOURCES = (
-    Source("exchange_rates", cbn.fetch, "exchange_rates", ("date",)),
-    Source("inflation", nbs.fetch, "inflation", ("date",)),
-    Source("competitor_prices", competitors.fetch, "competitor_prices",
-           ("date", "brand", "region", "source")),
-    Source("news_articles", news.fetch, "news_articles", ("id",)),
-    Source("social_posts", social.fetch, "social_posts", ("id",)),
+    Source("exchange_rates", cbn.fetch),
+    Source("inflation", nbs.fetch),
+    Source("competitor_prices", competitors.fetch),
+    Source("news_articles", news.fetch),
+    Source("social_posts", social.fetch),
 )
 
 
@@ -50,7 +47,6 @@ def run() -> int:
         except Exception as exc:  # noqa: BLE001 - isolate each source
             log.exception("[%s] fetch failed: %s", source.name, exc)
             failed.append(source.name)
-            supabase_io.log_event(f"scrape.{source.name}", "error", str(exc))
             continue
 
         if frame.empty:
@@ -62,17 +58,13 @@ def run() -> int:
             parquet_io.upsert(source.name, frame)
         except Exception as exc:  # noqa: BLE001
             # A Parquet failure IS fatal for that source -- it is the source of
-            # truth, and mirroring to Supabase without it would invert the
-            # authority relationship the whole design rests on.
+            # truth, so there is nothing left to count as a success.
             log.exception("[%s] Parquet write failed: %s", source.name, exc)
             failed.append(source.name)
-            supabase_io.log_event(f"scrape.{source.name}", "error", str(exc))
             continue
 
-        supabase_io.mirror(source.table, frame, source.conflict)
         succeeded.append(source.name)
         total_rows += len(frame)
-        supabase_io.log_event(f"scrape.{source.name}", "ok", f"{len(frame)} rows")
 
     log.info(
         "Scrape complete: %d row(s) across %d/%d source(s). Failed: %s",
