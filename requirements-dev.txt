@@ -1,0 +1,10 @@
+# Test-only dependencies. Kept out of requirements-actions.txt so the four compute
+# workflows do not install or cache a test runner they never invoke -- all four key
+# their pip cache on requirements-actions.txt, so adding pytest there would
+# invalidate four caches for a dependency no job uses.
+#
+# The `-r` rather than a trimmed list is deliberate: the tests must run against the
+# *same* pinned pandas/pyarrow/scipy the jobs use, or the suite stops being evidence
+# about production.
+-r requirements-actions.txt
+pytest==8.3.4
