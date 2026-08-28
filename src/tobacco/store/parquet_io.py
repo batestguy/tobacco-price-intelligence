@@ -74,8 +74,9 @@ def _spec(name: str) -> Dataset:
         return DATASETS[name]
     except KeyError:
         raise KeyError(
-            f"Unknown dataset {name!r}. Register it in parquet_io.DATASETS and "
-            f"add the matching table to supabase/schema.sql."
+            f"Unknown dataset {name!r}. Register it in parquet_io.DATASETS -- "
+            f"which is the only place it needs registering. supabase/schema.sql "
+            f"holds only `users` now (CLAUDE.md departure 5)."
         ) from None
 
 

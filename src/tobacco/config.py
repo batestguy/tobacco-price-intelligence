@@ -88,10 +88,14 @@ CATEGORY_PRICE_ELASTICITY = -0.62
 #: rivals; with this firm that is four players; an equal split is 0.25.
 #:
 #: Sensitivity, disclosed so the number is auditable rather than merely
-#: convenient: at current prices every SKU lands strictly inside PRICE_GRID for
-#: s in (0.197, 0.304). Outside that band the optimizer reports a grid bound --
-#: which is the honest outcome, and is what the guard in optimize/linprog.py
-#: exists to make visible. This value is NOT to be re-tuned to escape one.
+#: convenient: every SKU lands strictly inside PRICE_GRID for s in (0.197, 0.304)
+#: **at the 2026-08-28 observed price level (NGN 1,337.59/USD)**. The basis matters
+#: because sales_mock scales shelf prices by 1 + 0.35·(fx/1500 − 1), so the band
+#: moves with the naira: at BASE_PRICE_NGN it is (0.213, 0.315). Outside the band
+#: the optimizer reports a grid bound -- which is the honest outcome, and is what
+#: the guard in optimize/linprog.py exists to make visible. This value is NOT to be
+#: re-tuned to escape one. The band is re-derived from this same algebra in
+#: tests/conftest.py rather than pinned to these literals, for that reason.
 ASSUMED_MARKET_SHARE = 0.25
 
 #: Firm-level elasticity, derived. A category figure understates what ONE seller
@@ -108,8 +112,11 @@ ASSUMED_MARKET_SHARE = 0.25
 #: the multiplier would force UNIT_COST_NGN or the grid to move with it. Deferred
 #: rather than dropped.
 #:
-#: PREMIUM_20 and MIDRANGE_20 currently share a cost/price ratio (0.6139), so a
-#: uniform elasticity gives them the same percentage recommendation. Expected.
+#: A uniform elasticity makes the recommendation a function of the cost/price
+#: ratio alone, so tiers with similar ratios get similar percentages. The three
+#: are close but not equal -- 0.600, 0.590 and 0.614 -- and because FX scales all
+#: prices uniformly they stay unequal at every FX level. Expect neighbouring
+#: recommendations, not identical ones.
 PRICE_ELASTICITY: dict[str, float] = {sku: CATEGORY_PRICE_ELASTICITY / ASSUMED_MARKET_SHARE
                                       for sku in SKUS}   # -2.48
 
