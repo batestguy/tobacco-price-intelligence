@@ -66,9 +66,11 @@ which is why the scraper was written in the first place — but that is precisel
 what makes the data sporadic and unrepresentative. It was a poor basis for a
 pricing constraint on the merits, quite apart from how it read.
 
-`optimize/linprog.py` needs no competitor data to function: with none, it reports
-`binding_constraint` as `INACTIVE` rather than inventing a ceiling. It was built
-for this case. The `competitor_prices` dataset and its §2 schema are unchanged.
+`optimize/linprog.py` needs no competitor data to function: with none, it drops
+the ceiling from the candidate filter and says so in an optimizer *note* ("the
++5% competitor ceiling is INACTIVE"), rather than inventing a ceiling. `INACTIVE`
+is never a `binding_constraint` value — that column only ever names a limit that
+actually bound. It was built for this case. The `competitor_prices` dataset and its §2 schema are unchanged.
 
 To populate it, record prices you can **cite** — a published price survey, a
 regulator or trade-association filing, a dated retail audit — one row per quote:

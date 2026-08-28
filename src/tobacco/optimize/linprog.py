@@ -40,6 +40,14 @@ from tobacco import config
 log = logging.getLogger(__name__)
 
 #: Candidate price adjustments, as fractions of the current price.
+#:
+#: This is a **trust region**, not a search range to be widened until the answer
+#: falls inside it. The constant-elasticity curve is asserted at the *current*
+#: price and is only credible near it; the further a candidate sits from ``p0``,
+#: the more of the reported profit is extrapolation. So an optimum outside these
+#: bounds is a finding to report, not a reason to enlarge the grid -- see
+#: ``_interior_optimum``, whose ``p*`` does not depend on ``p0`` at all, which is
+#: exactly why widening would just turn every run into the static markup optimum.
 PRICE_GRID = np.round(np.arange(-0.10, 0.2501, 0.01), 4)
 
 
@@ -53,6 +61,10 @@ class PriceDecision:
     binding_constraint: str  # which limit stopped it going further
     competitor_ceiling: float | None
     margin_floor: float
+    #: Unconstrained profit optimum, for the log and the memo notes only --
+    #: deliberately *not* written to the ``recommendations`` dataset, which
+    #: carries prices someone might act on rather than diagnostics.
+    unconstrained_optimum_ngn: float | None = None
 
 
 @dataclass
@@ -83,6 +95,20 @@ def _demand_at(base_demand: float, base_price: float, price: float, elasticity: 
     return base_demand * (price / base_price) ** elasticity
 
 
+def _interior_optimum(unit_cost: float, elasticity: float) -> float | None:
+    """Unconstrained profit-maximising price, or ``None`` when none exists.
+
+    ``p* = εc/(1+ε)``; with ``ε = −e`` that is ``c·e/(e−1)`` -- the Lerner markup
+    at margin ``1/e``. For ``e ≤ 1`` the derivative is positive at every ``p > 0``:
+    profit rises without bound, so a grid edge is a property of the grid, not a
+    recommendation.
+    """
+    e = abs(float(elasticity))
+    if e <= 1.0 + 1e-9:
+        return None
+    return unit_cost * e / (e - 1.0)
+
+
 def optimise_prices(
     forecast: pd.DataFrame,
     competitor_avg: float | None,
@@ -110,6 +136,21 @@ def optimise_prices(
 
         unit_cost = config.UNIT_COST_NGN[sku]
         elasticity = config.PRICE_ELASTICITY[sku]
+
+        # Computed here, and reported unconditionally, rather than inside the
+        # binding chain below: when demand is inelastic there is no optimum for
+        # *any* constraint to be binding against, and a run where the competitor
+        # ceiling happened to be active would otherwise print `competitor_ceiling`
+        # -- a plausible-looking label on a meaningless number.
+        optimum = _interior_optimum(unit_cost, elasticity)
+        if optimum is None:
+            notes.append(
+                f"{sku}: elasticity {elasticity:.2f} is inelastic (|e| <= 1), so profit "
+                f"rises without bound as price rises and there is no interior optimum. "
+                f"No price grid can contain one. Any price reported below is the edge "
+                f"of a bound, not a profit-maximising choice."
+            )
+            log.warning(notes[-1])
 
         margin_floor = unit_cost * (1 + config.MIN_MARGIN_OVER_COST)
         ceiling = (
@@ -143,6 +184,7 @@ def optimise_prices(
                     binding_constraint="infeasible_floor_above_ceiling",
                     competitor_ceiling=ceiling,
                     margin_floor=margin_floor,
+                    unconstrained_optimum_ngn=optimum,
                 )
             )
             continue
@@ -188,10 +230,32 @@ def optimise_prices(
             binding = "competitor_ceiling"
         elif at_bottom and viable.min() > grid_bottom + 1e-9:
             binding = "margin_floor"
-        elif at_top:
+        elif optimum is None:
+            binding = "no_interior_optimum"
+        elif at_top and optimum > grid_top:
             binding = "price_grid_upper_bound"
+        elif at_bottom and optimum < grid_bottom:
+            # Not dead code by accident: today's elasticities never reach it, but
+            # a choice at the -10% edge with a *slack* margin floor used to fall
+            # through to `else` and be reported as `profit_optimum`, which it is
+            # not. Reachable once |e| > 3.15.
+            binding = "price_grid_lower_bound"
         else:
+            # Sitting on the top candidate is only an artifact when the optimum
+            # is beyond it. If p* falls between the last two grid steps, the top
+            # candidate genuinely *is* the grid-rounded optimum, and calling that
+            # a grid artifact would be the opposite dishonesty.
             binding = "profit_optimum"
+
+        if binding in ("price_grid_upper_bound", "price_grid_lower_bound"):
+            notes.append(
+                f"{sku}: the profit optimum is NGN {optimum:,.0f}, outside the "
+                f"{PRICE_GRID.min():+.0%}..{PRICE_GRID.max():+.0%} price grid "
+                f"(NGN {grid_bottom:,.0f}..{grid_top:,.0f}). The price reported is the "
+                f"grid edge, not the optimum -- the grid bounds how far a demand curve "
+                f"asserted at the current price is trusted to extrapolate."
+            )
+            log.warning(notes[-1])
 
         decisions.append(
             PriceDecision(
@@ -203,11 +267,13 @@ def optimise_prices(
                 binding_constraint=binding,
                 competitor_ceiling=round(ceiling, 2) if ceiling else None,
                 margin_floor=round(margin_floor, 2),
+                unconstrained_optimum_ngn=round(optimum, 2) if optimum is not None else None,
             )
         )
         log.info(
-            "%s: NGN %.0f -> %.0f (%+.1f%%), bound by %s",
+            "%s: NGN %.0f -> %.0f (%+.1f%%), bound by %s (p* %s)",
             sku, base_price, chosen_price, adjustment, binding,
+            f"NGN {optimum:,.0f}" if optimum is not None else "none -- unbounded",
         )
 
     return decisions, notes
