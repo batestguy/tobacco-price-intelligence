@@ -76,7 +76,13 @@ def test_build_prompt_renders_missing_values_as_unavailable():
 
     assert "Monthly inflation rate: unavailable%" in prompt
     assert "positive): unavailable" in prompt
-    assert "None" not in prompt and "nan" not in prompt
+
+    # Check the substituted values, not the whole prompt: the §10 DATA block's own
+    # fixed text contains both needles ("Fi-nan-cial news crisis probability").
+    data_block = prompt.split("DATA:", 1)[1].split("INSTRUCTIONS:", 1)[0]
+    for line in data_block.strip().splitlines():
+        value = line.split(": ", 1)[-1]
+        assert "None" not in value and "nan" not in value, line
 
 
 def test_build_prompt_omits_the_provenance_block_when_there_are_no_notes():
