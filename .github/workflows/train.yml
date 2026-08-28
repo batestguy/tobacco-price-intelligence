@@ -5,6 +5,15 @@ on:
   schedule:
     - cron: "0 23 * * 6"
   workflow_dispatch:
+    inputs:
+      regenerate_sales:
+        description: >-
+          Rewrite the ENTIRE synthetic sales history under the current
+          generator parameters. Only needed after changing one (e.g.
+          PRICE_ELASTICITY); otherwise the history keeps its old values and
+          the model fits a seam at the changeover week.
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -35,6 +44,9 @@ jobs:
       - name: Train forecaster
         env:
           PYTHONPATH: src
+          # Empty on a `schedule` trigger, which is falsy -- a scheduled run can
+          # never reach the rewrite.
+          REGENERATE_SALES_HISTORY: ${{ inputs.regenerate_sales }}
         run: python -m tobacco.jobs.train
 
       - name: Report metrics

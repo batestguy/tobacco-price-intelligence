@@ -77,13 +77,41 @@ BASE_PRICE_NGN: dict[str, float] = {
     "VALUE_20": 700.0,
 }
 
-#: Own-price elasticity of demand, per SKU (negative: price up, demand down).
-#: Value tier is the most price-sensitive.
-PRICE_ELASTICITY: dict[str, float] = {
-    "PREMIUM_20": -0.8,
-    "MIDRANGE_20": -1.2,
-    "VALUE_20": -1.7,
-}
+#: Own-price elasticity of demand for the tobacco CATEGORY in Nigeria.
+#: Cited: -0.62, national. Tob Prev Cessat 2020 (PMID 32411910); rural -0.63,
+#: urban -0.49. Corroborating: Nigeria youth -0.44 (PMC6747324); Africa
+#: low-income -0.562 (NCI Monograph 21 ch.4).
+CATEGORY_PRICE_ELASTICITY = -0.62
+
+#: ASSUMPTION, not a measurement. The firm is deliberately unnamed, so no share
+#: figure exists to cite. Rule stated in advance: COMPETITOR_BRANDS tracks three
+#: rivals; with this firm that is four players; an equal split is 0.25.
+#:
+#: Sensitivity, disclosed so the number is auditable rather than merely
+#: convenient: at current prices every SKU lands strictly inside PRICE_GRID for
+#: s in (0.197, 0.304). Outside that band the optimizer reports a grid bound --
+#: which is the honest outcome, and is what the guard in optimize/linprog.py
+#: exists to make visible. This value is NOT to be re-tuned to escape one.
+ASSUMED_MARKET_SHARE = 0.25
+
+#: Firm-level elasticity, derived. A category figure understates what ONE seller
+#: faces: buyers leaving a single brand switch to rivals rather than quitting.
+#: Under proportional substitution, eps_firm ~= eps_category / share.
+#: Derived in code so the arithmetic cannot drift from the citation.
+#:
+#: Uniform across tiers on purpose. Per-tier multipliers do exist in the
+#: literature (PMC9763177 finds premium more elastic than discount -- note this
+#: is the *opposite* of the "value tier is the most price-sensitive" assumption
+#: this replaces), but normalised against sales_mock.SKU_MIX the per-SKU interior
+#: bands become (0.256, 0.410), (0.204, 0.326) and (0.139, 0.233): the
+#: intersection is EMPTY. No single share puts all three interior, so adopting
+#: the multiplier would force UNIT_COST_NGN or the grid to move with it. Deferred
+#: rather than dropped.
+#:
+#: PREMIUM_20 and MIDRANGE_20 currently share a cost/price ratio (0.6139), so a
+#: uniform elasticity gives them the same percentage recommendation. Expected.
+PRICE_ELASTICITY: dict[str, float] = {sku: CATEGORY_PRICE_ELASTICITY / ASSUMED_MARKET_SHARE
+                                      for sku in SKUS}   # -2.48
 
 #: Weekly holding cost per unit of inventory (NGN).
 HOLDING_COST_PER_UNIT = 12.0

@@ -16,9 +16,19 @@ The generator embeds the relationships the pipeline is supposed to learn:
 * mild downtrend on the premium tier and uptrend on value (down-trading).
 
 Determinism is per row, not per run: each ``(week, sku, region)`` seeds its own
-generator, so regenerating any subset reproduces byte-identical values and the
-Parquet upsert stays a genuine no-op. A run-level seed would not survive a
-changed date range.
+generator, so the *noise* in any row is reproducible from its key alone, and a
+changed date range does not reshuffle the rows it still covers. A run-level seed
+would not survive that.
+
+**This is not the same as a regeneration being byte-identical, and it used to
+claim it was.** The RNG is stable but the generator's *inputs* are not:
+``fallback_fx`` is a running mean over the whole scraped FX series and therefore
+moves with every twice-daily scrape, and ``config.PRICE_ELASTICITY`` feeds
+``price_effect``. ``data/curated/exchange_rates/`` currently covers two months
+against 37 ``sales_mock`` partitions, so the large majority of weeks take
+``fallback_fx`` and shift slightly whenever it does. Treat a regeneration as
+rewriting values, not as a no-op -- which is why ``jobs/train.py`` gates the full
+rewrite behind an explicit flag rather than letting it happen by accident.
 """
 
 from __future__ import annotations
@@ -105,8 +115,14 @@ def generate(start: date, end: date) -> pd.DataFrame:
     week_index = 0
 
     while week <= last:
-        # Nearest known FX; before the scraped series begins, taper toward the
-        # reference level so the synthetic history is not a flat line.
+        # Exact-week lookup, not nearest: a week with no scraped FX takes
+        # `fallback_fx` (the mean of the whole series) rather than its
+        # neighbour's rate. With only recent months scraped, that means most of
+        # the history sits at one flat synthetic level with a real series
+        # attached to the tail. A taper toward FX_REFERENCE across the gap would
+        # be better and is deliberately not implemented here -- it would change
+        # every historical row, so it belongs in its own change with its own
+        # regeneration, not smuggled into one.
         fx = fx_by_week.get(week, fallback_fx)
         holiday = config.is_holiday_week(week)
         # Week-of-year seasonality: a broad Q4 peak, trough in the wet season.

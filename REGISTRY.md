@@ -42,6 +42,23 @@ project back up.
 `sources/nbs.py` unions the inflation tiers rather than racing them — a better tier wins any
 month it covers — and records which tier produced each row in the `source` column.
 
+## Parameter sources
+
+Model constants that come from outside the repo. A cited paper is an external dependency like
+any URL, and the whole point of a citation is that someone can go and check it.
+
+| Constant | Value | Source | Notes |
+|---|---|---|---|
+| `config.CATEGORY_PRICE_ELASTICITY` | −0.62 | [Tob Prev Cessat 2020, PMID 32411910](https://pubmed.ncbi.nlm.nih.gov/32411910/) | Own-price elasticity of Nigerian tobacco demand, national. Rural −0.63, urban −0.49 |
+| — corroborating | −0.44 | [PMC6747324](https://pmc.ncbi.nlm.nih.gov/articles/PMC6747324/) | Nigeria, youth cigarette demand |
+| — corroborating | −0.562 | NCI Tobacco Control Monograph 21, ch.4 | Africa, low-income countries |
+| `config.ASSUMED_MARKET_SHARE` | 0.25 | **none — an assumption** | The firm is unnamed, so no share exists to cite. Rule fixed in advance: `COMPETITOR_BRANDS` is 3 rivals, +1 for this firm, equal split. Interior for `s ∈ (0.197, 0.304)`; **not to be re-tuned to escape a grid bound** |
+| `config.PRICE_ELASTICITY` | −2.48 | derived | `CATEGORY_PRICE_ELASTICITY / ASSUMED_MARKET_SHARE`, computed in code so it cannot drift from the citation. Category ≠ firm: brand switchers leave the seller without leaving the category |
+| Per-tier elasticity multiplier | *not adopted* | PMC9763177 | Premium more elastic than discount. Normalised against `SKU_MIX` the per-SKU interior bands do not intersect, so no share puts all three SKUs interior. Deferred |
+
+`UNIT_COST_NGN`, `BASE_PRICE_NGN`, `SKU_MIX` and the rest of `sources/sales_mock.py` are
+**synthetic** and cite nothing — see `CLAUDE.md`, "No real company data".
+
 ## GitHub Actions secrets
 
 Set with `gh secret set NAME` (paste the value at the prompt — never pass it as an argument,
