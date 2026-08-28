@@ -42,7 +42,7 @@ SENTIMENT_LAGS = (1, 3)
 #: change dummy"). There is no free machine-readable gazette feed, so the flag is
 #: derived from news text -- noisier than a gazette, but honest about its source.
 TAX_TERMS = re.compile(
-    r"\b(excise|vat\b|value[- ]added tax|tariff|levy|customs duty|tax hike|"
+    r"\b(?:excise|vat\b|value[- ]added tax|tariff|levy|customs duty|tax hike|"
     r"tax increase|sin tax)\b",
     re.IGNORECASE,
 )
