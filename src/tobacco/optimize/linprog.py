@@ -265,7 +265,9 @@ def optimise_prices(
                 adjustment_pct=round(float(adjustment), 2),
                 expected_profit=float(profits[chosen_index]),
                 binding_constraint=binding,
-                competitor_ceiling=round(ceiling, 2) if ceiling else None,
+                # `is not None`, not truthiness: a 0.0 ceiling is a real (if
+                # absurd) observation and must not report as "none observed".
+                competitor_ceiling=round(ceiling, 2) if ceiling is not None else None,
                 margin_floor=round(margin_floor, 2),
                 unconstrained_optimum_ngn=round(optimum, 2) if optimum is not None else None,
             )

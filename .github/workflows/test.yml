@@ -1,0 +1,64 @@
+name: test
+
+# The only workflow here that is not a pipeline stage. It runs on every code push
+# and pull request; it writes nothing and commits nothing.
+on:
+  push:
+    paths-ignore:
+      # The bot commits to data/ and models/ roughly three times a day. None of
+      # those touch code, and letting them queue a test run would bury the real
+      # results in the run list.
+      - 'data/**'
+      - 'models/**'
+      - 'notebooks/**'
+      - '**/*.md'
+  pull_request:
+    paths-ignore:
+      - 'data/**'
+      - 'models/**'
+      - 'notebooks/**'
+      - '**/*.md'
+  workflow_dispatch:
+
+# READ ONLY, unlike the four job workflows. This one produces no commit, so it
+# does not need `contents: write` -- do not copy that block in from scrape.yml
+# out of habit.
+permissions:
+  contents: read
+
+concurrency:
+  # Deliberately NOT the `data-write` group the pipeline stages share. A test run
+  # must never queue behind a scrape, nor hold one up.
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Collect tests
+        # A separate step so an import error reads differently from an assertion
+        # failure: if this one is red, nothing ran at all.
+        env:
+          PYTHONPATH: src
+        run: pytest --collect-only -q
+
+      - name: Run tests
+        env:
+          PYTHONPATH: src
+        run: pytest
