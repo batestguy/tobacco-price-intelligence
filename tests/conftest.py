@@ -88,9 +88,14 @@ def interior_share_band(unit_cost: float, price: float) -> tuple[float, float]:
     """Market shares for which the profit optimum falls strictly inside PRICE_GRID.
 
     Derived rather than hard-coded, because the literal band in ``config.py`` is
-    only reproducible at one FX level: ``sales_mock`` scales shelf prices by
-    ``1 + 0.35·(fx/1500 − 1)``, so the observed ``price`` -- and with it the band
-    -- drifts on every scrape. Pinning the literals would pin today's naira.
+    only reproducible at one FX level. Both sides of the ratio move with the
+    naira: ``sales_mock`` scales shelf prices by
+    ``1 + config.FX_PASSTHROUGH·(fx/config.FX_REFERENCE − 1)``, and
+    ``config.unit_cost_ngn`` scales cost by the same expression with
+    ``config.COST_IMPORT_SHARE`` in place of the pass-through. They move at
+    different rates, so ``unit_cost / price`` -- and with it the band -- drifts on
+    every scrape. Pinning the literals would pin today's naira; pass the cost and
+    price at the FX level being asserted instead.
 
     The algebra, so it is auditable:
 

@@ -13,6 +13,7 @@ non-fatal stage.
 from __future__ import annotations
 
 import logging
+import math
 import os
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -62,20 +63,88 @@ SKUS: tuple[str, ...] = ("PREMIUM_20", "MIDRANGE_20", "VALUE_20")
 #: reference file, not a scrape -- see sources/competitors.py.
 COMPETITOR_BRANDS: tuple[str, ...] = ("Bohem", "Time", "Gold Mount")
 
-#: Unit production cost per pack (NGN), used by the optimizer's margin floor.
-#: Synthetic, consistent with the synthetic sales generator.
+#: FX level at which UNIT_COST_NGN and BASE_PRICE_NGN both hold. They are quoted
+#: at one common reference on purpose: they are a matched pair, and a cost stated
+#: at a different naira level than the price it is measured against is not a margin.
+FX_REFERENCE = 1500.0
+
+#: Share of an FX move that reaches the shelf price. Lives here rather than in
+#: sources/sales_mock.py because ``unit_cost_ngn`` below needs it too, and two
+#: copies of a pass-through coefficient are two things to keep in step.
+FX_PASSTHROUGH = 0.35
+
+#: Unit production cost per pack (NGN) **at FX_REFERENCE**, used by the
+#: optimizer's margin floor. Synthetic, consistent with the synthetic sales
+#: generator. Read it through ``unit_cost_ngn``, not directly: at any other naira
+#: level the import share of this figure has moved.
 UNIT_COST_NGN: dict[str, float] = {
     "PREMIUM_20": 900.0,
     "MIDRANGE_20": 620.0,
     "VALUE_20": 430.0,
 }
 
-#: Baseline list price per pack (NGN) before any recommended adjustment.
+#: Baseline list price per pack (NGN) at FX_REFERENCE, before any recommended
+#: adjustment. sales_mock scales it by ``1 + FX_PASSTHROUGH·(fx/FX_REFERENCE − 1)``.
 BASE_PRICE_NGN: dict[str, float] = {
     "PREMIUM_20": 1500.0,
     "MIDRANGE_20": 1050.0,
     "VALUE_20": 700.0,
 }
+
+#: Import content of unit cost: the fraction priced in USD, which therefore moves
+#: one-for-one with the naira. The remainder -- leaf grown in Nigeria, labour,
+#: local distribution -- does not.
+#:
+#: ASSUMPTION, not a measurement, and the reasoning matters more than the figure.
+#: Acetate tow, cigarette paper, tipping paper, packaging board and machine spares
+#: are imported; leaf and labour are not. A little over half is the middle of that,
+#: and it implies the firm passes FX_PASSTHROUGH / COST_IMPORT_SHARE ~= 64% of
+#: import cost pressure through to the shelf and absorbs the rest -- which is what
+#: sales_mock means by "partially passed through".
+#:
+#: This was effectively 0 until 2026-09-04: cost was a frozen naira constant while
+#: sales_mock scaled price with FX, so the modelled margin widened mechanically
+#: every time the naira slid. 0 is not a neutral default. It is the extreme claim
+#: that a Nigerian manufacturer imports none of its inputs, and it breaks something
+#: concrete -- ASSUMED_MARKET_SHARE = 0.25 is interior only while every SKU's
+#: cost/price ratio stays in (0.537, 0.746), which with a frozen cost holds over
+#: NGN 743..1,926/USD. The naira crossed 1,500 in 2024.
+#:
+#: Sensitivity, disclosed so the number is auditable rather than merely convenient.
+#: The FX range over which 0.25 stays interior for all three SKUs:
+#:
+#:     0.45  ->  NGN   470 .. 14,376
+#:     0.55  ->  NGN   915 ..  4,073
+#:     0.65  ->  NGN 1,091 ..  2,929
+#:
+#: A wider range is NOT better and this is NOT to be tuned to widen one. The width
+#: is only distance from FX_PASSTHROUGH: at exactly 0.35 the ratio is algebraically
+#: FX-invariant and the range is unbounded -- and that value is precisely the claim
+#: that 100% of cost pressure reaches the shelf, i.e. assuming the problem away.
+#: COST_IMPORT_SHARE > FX_PASSTHROUGH is required by the model's own account of
+#: itself, and is asserted in tests/test_config_invariants.py.
+#:
+#: The trade, stated plainly: against a frozen cost this moves the appreciation-side
+#: bound in (743 -> 915) and the depreciation-side bound out (1,926 -> 4,073). The
+#: naira has depreciated for a decade. That is the side carrying the exposure.
+COST_IMPORT_SHARE = 0.55
+
+
+def unit_cost_ngn(sku: str, fx_rate: float | None = None) -> float:
+    """Unit cost per pack at ``fx_rate``, or at ``FX_REFERENCE`` when unknown.
+
+    ``c(fx) = c0 · (1 + m·(fx/FX_REFERENCE − 1))`` -- the import share moves with
+    the naira, the local remainder does not.
+
+    An unknown or unusable rate returns the reference cost rather than guessing at
+    one. That is the pre-FX behaviour, and ``optimise_prices`` says in a note when
+    it has fallen back: a margin floor quoted at a reference rate is a different
+    claim from one quoted at today's.
+    """
+    base = UNIT_COST_NGN[sku]
+    if fx_rate is None or not math.isfinite(fx_rate) or fx_rate <= 0:
+        return base
+    return base * (1 + COST_IMPORT_SHARE * (fx_rate / FX_REFERENCE - 1))
 
 #: Own-price elasticity of demand for the tobacco CATEGORY in Nigeria.
 #: Cited: -0.62, national. Tob Prev Cessat 2020 (PMID 32411910); rural -0.63,
@@ -88,14 +157,18 @@ CATEGORY_PRICE_ELASTICITY = -0.62
 #: rivals; with this firm that is four players; an equal split is 0.25.
 #:
 #: Sensitivity, disclosed so the number is auditable rather than merely
-#: convenient: every SKU lands strictly inside PRICE_GRID for s in (0.197, 0.304)
-#: **at the 2026-08-28 observed price level (NGN 1,337.59/USD)**. The basis matters
-#: because sales_mock scales shelf prices by 1 + 0.35·(fx/1500 − 1), so the band
-#: moves with the naira: at BASE_PRICE_NGN it is (0.213, 0.315). Outside the band
-#: the optimizer reports a grid bound -- which is the honest outcome, and is what
-#: the guard in optimize/linprog.py exists to make visible. This value is NOT to be
-#: re-tuned to escape one. The band is re-derived from this same algebra in
-#: tests/conftest.py rather than pinned to these literals, for that reason.
+#: convenient: every SKU lands strictly inside PRICE_GRID for s in (0.213, 0.315)
+#: at FX_REFERENCE, and (0.222, 0.322) at the 2026-08-28 observed NGN 1,337.59/USD.
+#: The basis has to be quoted because both cost and price are FX-linked, at
+#: different rates, so the band still moves with the naira -- but it now moves
+#: slowly and over a bounded range, which is COST_IMPORT_SHARE's whole job. Before
+#: that constant existed the same two bands were (0.213, 0.315) and (0.197, 0.304),
+#: drifting roughly twice as fast and in the direction that runs out.
+#:
+#: Outside the band the optimizer reports a grid bound -- which is the honest
+#: outcome, and is what the guard in optimize/linprog.py exists to make visible.
+#: This value is NOT to be re-tuned to escape one. The band is re-derived from this
+#: same algebra in tests/conftest.py rather than pinned to these literals.
 ASSUMED_MARKET_SHARE = 0.25
 
 #: Firm-level elasticity, derived. A category figure understates what ONE seller
@@ -114,9 +187,10 @@ ASSUMED_MARKET_SHARE = 0.25
 #:
 #: A uniform elasticity makes the recommendation a function of the cost/price
 #: ratio alone, so tiers with similar ratios get similar percentages. The three
-#: are close but not equal -- 0.600, 0.590 and 0.614 -- and because FX scales all
-#: prices uniformly they stay unequal at every FX level. Expect neighbouring
-#: recommendations, not identical ones.
+#: are close but not equal -- 0.600, 0.590 and 0.614 at FX_REFERENCE -- and because
+#: FX scales cost and price by one SKU-independent factor each, all three ratios
+#: move by the same multiple: they stay unequal, and stay in this order, at every
+#: FX level. Expect neighbouring recommendations, not identical ones.
 PRICE_ELASTICITY: dict[str, float] = {sku: CATEGORY_PRICE_ELASTICITY / ASSUMED_MARKET_SHARE
                                       for sku in SKUS}   # -2.48
 

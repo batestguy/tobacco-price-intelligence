@@ -13,6 +13,8 @@ from __future__ import annotations
 
 from datetime import date
 
+import math
+
 import pandas as pd
 import pytest
 
@@ -51,6 +53,89 @@ def test_assumed_market_share_is_strictly_inside_the_derived_interior_band():
         f"ASSUMED_MARKET_SHARE={config.ASSUMED_MARKET_SHARE} is outside the "
         f"intersection ({lower:.4f}, {upper:.4f}); per-SKU bands {bands}"
     )
+
+
+# ---------------------------------------------------------------------------
+# FX-linked unit cost
+# ---------------------------------------------------------------------------
+
+#: The 2026-08-28 observed rate the config comments quote their bands at.
+OBSERVED_FX = 1337.59
+
+
+def price_at(sku: str, fx: float) -> float:
+    """Shelf price at ``fx``, as ``sales_mock.generate`` scales it."""
+    return config.BASE_PRICE_NGN[sku] * (
+        1 + config.FX_PASSTHROUGH * (fx / config.FX_REFERENCE - 1)
+    )
+
+
+def _share_is_interior_for_every_sku(fx: float) -> bool:
+    bands = [
+        interior_share_band(config.unit_cost_ngn(sku, fx), price_at(sku, fx))
+        for sku in config.SKUS
+    ]
+    lower = max(low for low, _ in bands)
+    upper = min(high for _, high in bands)
+    return lower < config.ASSUMED_MARKET_SHARE < upper
+
+
+def test_cost_import_share_exceeds_fx_passthrough():
+    """The firm absorbs part of its import-cost pressure (config.COST_IMPORT_SHARE).
+
+    At equality the cost/price ratio is FX-invariant, which is the claim that all
+    cost pressure reaches the shelf -- the problem assumed away, not solved.
+    """
+    assert config.COST_IMPORT_SHARE > config.FX_PASSTHROUGH
+
+
+def test_cost_import_share_is_a_proper_fraction():
+    assert 0 < config.COST_IMPORT_SHARE < 1
+
+
+@pytest.mark.parametrize("fx_rate", [None, math.nan, math.inf, 0.0, -1337.59])
+@pytest.mark.parametrize("sku", config.SKUS)
+def test_unit_cost_falls_back_to_the_reference_cost_without_a_usable_rate(sku, fx_rate):
+    assert config.unit_cost_ngn(sku, fx_rate) == config.UNIT_COST_NGN[sku]
+
+
+@pytest.mark.parametrize("sku", config.SKUS)
+def test_unit_cost_at_the_reference_rate_is_the_reference_cost(sku):
+    assert config.unit_cost_ngn(sku, config.FX_REFERENCE) == pytest.approx(
+        config.UNIT_COST_NGN[sku]
+    )
+
+
+@pytest.mark.parametrize("sku", config.SKUS)
+def test_unit_cost_scales_only_its_import_share_with_the_naira(sku):
+    c0 = config.UNIT_COST_NGN[sku]
+    m = config.COST_IMPORT_SHARE
+    expected = c0 * (1 + m * (OBSERVED_FX / config.FX_REFERENCE - 1))
+
+    assert config.unit_cost_ngn(sku, OBSERVED_FX) == pytest.approx(expected)
+    # A stronger naira than the reference lowers cost; a weaker one raises it.
+    assert config.unit_cost_ngn(sku, OBSERVED_FX) < c0
+    assert config.unit_cost_ngn(sku, 2 * config.FX_REFERENCE) == pytest.approx(c0 * (1 + m))
+
+
+@pytest.mark.parametrize(
+    "fx",
+    [
+        OBSERVED_FX,
+        config.FX_REFERENCE,
+        920.0,    # just inside the documented appreciation-side edge, 915
+        4060.0,   # just inside the documented depreciation-side edge, 4,073
+    ],
+)
+def test_assumed_market_share_stays_interior_across_the_documented_fx_range(fx):
+    """Backs the COST_IMPORT_SHARE sensitivity table (0.55 -> NGN 915 .. 4,073)."""
+    assert _share_is_interior_for_every_sku(fx)
+
+
+@pytest.mark.parametrize("fx", [900.0, 4100.0])
+def test_assumed_market_share_leaves_the_band_just_outside_the_documented_range(fx):
+    """The other half of the table's claim: the range is bounded where it says."""
+    assert not _share_is_interior_for_every_sku(fx)
 
 
 def _decisions_at_share(share, forecast_frame, monkeypatch):

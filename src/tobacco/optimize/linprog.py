@@ -112,13 +112,29 @@ def _interior_optimum(unit_cost: float, elasticity: float) -> float | None:
 def optimise_prices(
     forecast: pd.DataFrame,
     competitor_avg: float | None,
+    fx_rate: float | None = None,
 ) -> tuple[list[PriceDecision], list[str]]:
-    """Choose a price per SKU subject to the ceiling and margin floor."""
+    """Choose a price per SKU subject to the ceiling and margin floor.
+
+    ``fx_rate`` sets the naira level at which unit costs are quoted. It matters
+    because the prices in ``forecast`` are already FX-scaled, so holding cost
+    fixed would let the modelled margin widen every time the naira slid -- see
+    ``config.COST_IMPORT_SHARE``.
+    """
     notes: list[str] = []
     if competitor_avg is None or not np.isfinite(competitor_avg):
         notes.append(
             "No competitor price observed; the +5% competitor ceiling is "
             "INACTIVE and recommendations are bounded only by the price grid."
+        )
+        log.warning(notes[-1])
+
+    if fx_rate is None or not np.isfinite(fx_rate) or fx_rate <= 0:
+        fx_rate = None
+        notes.append(
+            f"No FX rate available; unit costs are quoted at the reference level "
+            f"of NGN {config.FX_REFERENCE:,.0f}/USD. The margin floor and profit "
+            f"optimum below are stated on that basis, not on today's naira."
         )
         log.warning(notes[-1])
 
@@ -134,7 +150,7 @@ def optimise_prices(
         if not np.isfinite(base_price) or base_price <= 0:
             base_price = config.BASE_PRICE_NGN[sku]
 
-        unit_cost = config.UNIT_COST_NGN[sku]
+        unit_cost = config.unit_cost_ngn(sku, fx_rate)
         elasticity = config.PRICE_ELASTICITY[sku]
 
         # Computed here, and reported unconditionally, rather than inside the
@@ -273,8 +289,10 @@ def optimise_prices(
             )
         )
         log.info(
-            "%s: NGN %.0f -> %.0f (%+.1f%%), bound by %s (p* %s)",
-            sku, base_price, chosen_price, adjustment, binding,
+            # Unit cost is in the line because it is now a computed quantity
+            # rather than a constant you can look up in config.
+            "%s: NGN %.0f -> %.0f (%+.1f%%) at unit cost %.0f, bound by %s (p* %s)",
+            sku, base_price, chosen_price, adjustment, unit_cost, binding,
             f"NGN {optimum:,.0f}" if optimum is not None else "none -- unbounded",
         )
 
@@ -419,12 +437,16 @@ def optimise_transfers(forecast: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFra
     return transfers, alerts, total_cost
 
 
-def optimise(forecast: pd.DataFrame, competitor_avg: float | None) -> OptimizationResult:
+def optimise(
+    forecast: pd.DataFrame,
+    competitor_avg: float | None,
+    fx_rate: float | None = None,
+) -> OptimizationResult:
     """Run both stages and bundle the result."""
     if forecast.empty:
         return OptimizationResult(notes=["No forecast available; nothing to optimise."])
 
-    prices, notes = optimise_prices(forecast, competitor_avg)
+    prices, notes = optimise_prices(forecast, competitor_avg, fx_rate)
     transfers, alerts, cost = optimise_transfers(forecast)
 
     return OptimizationResult(

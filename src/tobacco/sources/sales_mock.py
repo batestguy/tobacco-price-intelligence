@@ -72,10 +72,10 @@ SKU_TREND: dict[str, float] = {
     "VALUE_20": 0.0011,
 }
 
-#: FX level at which BASE_PRICE_NGN holds. Above it, prices drift up.
-FX_REFERENCE = 1500.0
-#: Share of an FX move that reaches the shelf price.
-FX_PASSTHROUGH = 0.35
+#: ``FX_REFERENCE`` and ``FX_PASSTHROUGH`` used to live here. They moved to
+#: ``config`` when ``config.unit_cost_ngn`` started needing them: the price side
+#: and the cost side have to be scaled against the same reference, and two copies
+#: of a pass-through coefficient are two things to keep in step.
 
 
 def _rng(week: date, sku: str, region: str) -> np.random.Generator:
@@ -106,7 +106,7 @@ def generate(start: date, end: date) -> pd.DataFrame:
     """Weekly sales rows for every SKU/region between ``start`` and ``end``."""
     fx_by_week = _fx_by_week()
     fallback_fx = (
-        float(np.mean(list(fx_by_week.values()))) if fx_by_week else FX_REFERENCE
+        float(np.mean(list(fx_by_week.values()))) if fx_by_week else config.FX_REFERENCE
     )
 
     week = _monday_on_or_before(start)
@@ -119,7 +119,7 @@ def generate(start: date, end: date) -> pd.DataFrame:
         # `fallback_fx` (the mean of the whole series) rather than its
         # neighbour's rate. With only recent months scraped, that means most of
         # the history sits at one flat synthetic level with a real series
-        # attached to the tail. A taper toward FX_REFERENCE across the gap would
+        # attached to the tail. A taper toward config.FX_REFERENCE across the gap would
         # be better and is deliberately not implemented here -- it would change
         # every historical row, so it belongs in its own change with its own
         # regeneration, not smuggled into one.
@@ -131,8 +131,8 @@ def generate(start: date, end: date) -> pd.DataFrame:
         for sku in config.SKUS:
             base_price = config.BASE_PRICE_NGN[sku]
             # Cost pressure from a weaker naira, partially passed through.
-            fx_ratio = fx / FX_REFERENCE
-            price = base_price * (1 + FX_PASSTHROUGH * (fx_ratio - 1))
+            fx_ratio = fx / config.FX_REFERENCE
+            price = base_price * (1 + config.FX_PASSTHROUGH * (fx_ratio - 1))
 
             for region in config.REGIONS:
                 rng = _rng(week, sku, region)
