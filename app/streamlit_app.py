@@ -25,6 +25,7 @@ import plotly.express as px  # noqa: E402
 import streamlit as st  # noqa: E402
 
 from tobacco import config  # noqa: E402
+from tobacco.memo import groq  # noqa: E402
 
 st.set_page_config(
     page_title="Price Intelligence & Supply Chain",
@@ -186,7 +187,13 @@ def executive_view() -> None:
     st.markdown("#### Strategic memo")
     memo, memo_date = data.latest_memo()
     if memo:
-        st.caption(f"Generated {memo_date} by Llama 3.3 70B from the figures above.")
+        if groq.FALLBACK_MARKER in memo:
+            st.caption(
+                f"Generated {memo_date} without the LLM: Groq was unavailable, so this "
+                f"is the underlying figures only."
+            )
+        else:
+            st.caption(f"Generated {memo_date} by {groq.MODEL} on Groq from the figures above.")
         with st.expander("Read memo", expanded=True):
             st.markdown(memo)
     else:

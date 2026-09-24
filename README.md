@@ -67,7 +67,7 @@ src/tobacco/
   models/             train_xgb.py · predict.py
   optimize/linprog.py SciPy optimizer + the four business constraints
   alerts/email.py     Gmail SMTP, the four trigger rules
-  memo/groq.py        Llama 3.3 70B memo generation
+  memo/groq.py        GPT-OSS 120B memo generation (via Groq)
   store/parquet_io.py month-partitioned Parquet — the data layer
   jobs/               entrypoints invoked by the workflows
 data/curated/         month-partitioned Parquet, committed by Actions

@@ -133,3 +133,41 @@ def test_every_spec_field_is_substituted(field):
 
 def test_the_fallback_is_dated_in_west_africa_time():
     assert str(config.today_wat()) in groq.generate(**VALUES)
+
+
+def _fake_groq(content):
+    """A stand-in ``groq`` module whose client returns ``content`` as the memo."""
+    import types
+
+    message = types.SimpleNamespace(content=content)
+    response = types.SimpleNamespace(choices=[types.SimpleNamespace(message=message)])
+    completions = types.SimpleNamespace(create=lambda **kwargs: response)
+    client = types.SimpleNamespace(chat=types.SimpleNamespace(completions=completions))
+    return types.SimpleNamespace(Groq=lambda api_key: client)
+
+
+@pytest.mark.parametrize("content", [None, "", "   \n"])
+def test_an_empty_completion_falls_back_rather_than_saving_a_blank_memo(content, monkeypatch):
+    """A reasoning model can spend its whole token budget before writing a word."""
+    import sys
+
+    monkeypatch.setenv("GROQ_API_KEY", "test-key")
+    monkeypatch.setitem(sys.modules, "groq", _fake_groq(content))
+
+    memo = groq.generate(**VALUES)
+    assert memo.startswith("Subject:")
+    assert "1,337.59" in memo
+
+
+def test_a_real_completion_is_returned_stripped(monkeypatch):
+    import sys
+
+    monkeypatch.setenv("GROQ_API_KEY", "test-key")
+    monkeypatch.setitem(sys.modules, "groq", _fake_groq("  Subject: memo body \n"))
+
+    assert groq.generate(**VALUES) == "Subject: memo body"
+
+
+def test_the_fallback_carries_the_marker_the_dashboard_keys_on():
+    """app/streamlit_app.py uses it to avoid crediting the model with a data-only memo."""
+    assert groq.FALLBACK_MARKER in groq.generate(**VALUES)

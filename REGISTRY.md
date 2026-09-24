@@ -13,7 +13,7 @@ project back up.
 | GitHub | Code, versioned data, **all compute** | Actions unmetered on public repos | https://github.com/batestguy/tobacco-price-intelligence |
 | Supabase | Dashboard **Auth only** (login + `users` role lookup) | 500 MB; **pauses after 7 days idle**, and nothing keeps it warm | https://supabase.com/dashboard |
 | Streamlit Community Cloud | Dashboard hosting | 1 GB RAM; sleeps after 12 h idle | https://share.streamlit.io |
-| Groq | Llama 3.3 70B memo generation | ~1000 req/day, 12k tokens/min | https://console.groq.com |
+| Groq | GPT-OSS 120B memo generation (Llama 3.3 70B shut down 2026-08-16) | ~1000 req/day, 12k tokens/min | https://console.groq.com |
 | Hugging Face | Fine-tuned model weights | 100 GB Hub storage | https://huggingface.co/batestguy |
 | Kaggle | T4 GPU for transfer learning | 30 h/week, 12 h/session | https://kaggle.com/code |
 | Gmail | SMTP alerts | 100 emails/day (app password) | https://myaccount.google.com/apppasswords |
@@ -70,6 +70,11 @@ where it would land in shell history).
 | `GMAIL_ADDRESS` | recommend | The sending Gmail account |
 | `GMAIL_APP_PASSWORD` | recommend | Google Account → Security → App passwords (requires 2FA) |
 | `HF_TOKEN` | score, train | huggingface.co → Settings → Access Tokens (write scope, for Phase 3 pushes) |
+| `ALERT_RECIPIENTS_COMMERCIAL` | recommend | Comma-separated addresses for Commercial Director alerts |
+| `ALERT_RECIPIENTS_SUPPLY` | recommend | Comma-separated addresses for Supply Chain Manager alerts |
+
+The two recipient lists are not credentials, but they are secrets on purpose: Actions prints
+a step's `env:` in the run log, which is public on this repo, and only secrets are masked.
 
 Verify with `gh secret list` — it prints names and update times, never values.
 
@@ -81,8 +86,6 @@ Set with `gh variable set NAME --body value`.
 |---|---|---|
 | `FINBERT_MODEL` | `ProsusAI/finbert` | Point at `batestguy/finbert-ng-financial` after Phase 3 to switch the scorer over without a code change |
 | `NBS_INFLATION_URL` | _unset_ | A direct NBS CPI release (CSV or XLSX). Highest-priority inflation tier when set; skipped entirely when not, because a wrong URL fails every run and looks like a network fault |
-| `ALERT_RECIPIENTS_COMMERCIAL` | — | Comma-separated addresses for Commercial Director alerts |
-| `ALERT_RECIPIENTS_SUPPLY` | — | Comma-separated addresses for Supply Chain Manager alerts |
 
 ## Streamlit Cloud secrets
 
