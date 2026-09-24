@@ -166,3 +166,8 @@ def test_a_real_completion_is_returned_stripped(monkeypatch):
     monkeypatch.setitem(sys.modules, "groq", _fake_groq("  Subject: memo body \n"))
 
     assert groq.generate(**VALUES) == "Subject: memo body"
+
+
+def test_the_fallback_carries_the_marker_the_dashboard_keys_on():
+    """app/streamlit_app.py uses it to avoid crediting the model with a data-only memo."""
+    assert groq.FALLBACK_MARKER in groq.generate(**VALUES)
