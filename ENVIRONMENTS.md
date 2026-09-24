@@ -114,6 +114,28 @@ tuning, viz) `randomForest` `DALEX` `Rtsne` · **Causal:** `MatchIt` `Matching`
 Full list with one-line descriptions: `raw\r_packages.csv` (`toplevel` column marks
 the 305 deliberate installs).
 
+## WSL and remote-GPU CLIs (checked 2026-09-24)
+
+These are **clients**: they hand work to hosted GPUs and never run training or the
+pipeline themselves. The project's no-local-compute rule applies here too.
+
+| Tool | Windows (`C:\Python314`) | WSL Ubuntu 24.04 (WSL 2, Python 3.12) |
+|---|---|---|
+| Kaggle CLI | 2.2.3, **not signed in** | 2.2.4, **signed in** (OAuth, `auth_method: OAUTH`, no `kaggle.json`) |
+| Colab CLI (`google-colab-cli`) | 0.6.0, **broken**: imports POSIX-only `tty`, crashes on start | 0.6.0, **signed in** (`~/.config/colab-cli/token.json`), no active sessions |
+| `gh` | installed, authenticated | **missing** |
+| `git` / `uv` | installed | installed |
+
+- **Use WSL for both CLIs.** Getting Colab working on Windows is not worth it, and
+  signing in the Windows Kaggle CLI would only duplicate WSL.
+- WSL starts on demand (`wsl -d Ubuntu`). It was *Stopped* when checked; that is normal.
+- From Git Bash, prefix `MSYS_NO_PATHCONV=1` when passing `/mnt/...` paths to
+  `wsl.exe`, or Git Bash rewrites them into `C:/Program Files/Git/mnt/...`.
+- Re-check sign-in with `kaggle config view` (shows the username and auth method) and
+  `colab sessions`. Colab reports an available update (`pip install --upgrade google-colab-cli`).
+- Which route to use for the FinBERT fine-tune, and why Kaggle is preferred over
+  Colab: `SETUP.md`, Step 5.
+
 ## Node & CLI
 
 Node v24.15.0 · npm 11.16.0 · pnpm 10.33.2 · git 2.53.0 · quarto 1.9.38 ·
