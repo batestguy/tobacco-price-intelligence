@@ -187,3 +187,32 @@ def test_no_forecast_rows_for_a_sku_yields_no_decision(single_sku, forecast_fram
     forecast = forecast_frame(sku, 1000.0)
     decisions, _ = linprog.optimise_prices(forecast[forecast["sku"] != sku], None)
     assert decisions == []
+
+
+# ---------------------------------------------------------------------------
+# the FX basis of unit cost
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("fx_rate", [None, float("nan"), 0.0, -1.0])
+def test_missing_fx_rate_is_noted_and_costs_fall_back_to_the_reference(
+    fx_rate, single_sku, forecast_frame
+):
+    sku = single_sku(600.0, 1000.0, -2.48)
+    decisions, notes = linprog.optimise_prices(forecast_frame(sku, 1000.0), None, fx_rate=fx_rate)
+
+    (decision,) = decisions
+    assert any("No FX rate available" in note for note in notes)
+    assert decision.margin_floor == pytest.approx(600.0 * (1 + config.MIN_MARGIN_OVER_COST))
+
+
+def test_a_valid_fx_rate_emits_no_fx_note_and_scales_the_cost(single_sku, forecast_frame):
+    sku = single_sku(600.0, 1000.0, -2.48)
+    fx = 1337.59
+    decisions, notes = linprog.optimise_prices(forecast_frame(sku, 1000.0), None, fx_rate=fx)
+
+    (decision,) = decisions
+    assert not any("No FX rate available" in note for note in notes)
+    assert decision.margin_floor == pytest.approx(
+        config.unit_cost_ngn(sku, fx) * (1 + config.MIN_MARGIN_OVER_COST), abs=0.01
+    )  # abs: PriceDecision rounds margin_floor to 2 dp

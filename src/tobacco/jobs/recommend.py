@@ -96,8 +96,13 @@ def run() -> int:
             log.error("Forecast produced no rows; nothing to recommend")
             return 1
 
+        # FX is read before the optimiser, not after it with the rest of the memo
+        # context: unit costs are quoted at a naira level (config.unit_cost_ngn),
+        # so the rate is a pricing input now and not only a thing to report.
+        fx_history, fx_rate, fx_change = _fx_context()
+
         competitor_avg = _competitor_average()
-        result = linprog.optimise(forecast, competitor_avg)
+        result = linprog.optimise(forecast, competitor_avg, fx_rate)
         recommendations = linprog.to_recommendations(result, forecast)
 
         parquet_io.upsert("recommendations", recommendations)
@@ -116,7 +121,6 @@ def run() -> int:
         result.overall_adjustment_pct, len(result.transfers), len(result.stock_alerts),
     )
 
-    fx_history, fx_rate, fx_change = _fx_context()
     crisis, sentiment = _sentiment_context()
 
     # --- alerts (non-fatal) -------------------------------------------------
