@@ -70,6 +70,11 @@ where it would land in shell history).
 | `GMAIL_ADDRESS` | recommend | The sending Gmail account |
 | `GMAIL_APP_PASSWORD` | recommend | Google Account → Security → App passwords (requires 2FA) |
 | `HF_TOKEN` | score, train | huggingface.co → Settings → Access Tokens (write scope, for Phase 3 pushes) |
+| `ALERT_RECIPIENTS_COMMERCIAL` | recommend | Comma-separated addresses for Commercial Director alerts |
+| `ALERT_RECIPIENTS_SUPPLY` | recommend | Comma-separated addresses for Supply Chain Manager alerts |
+
+The two recipient lists are not credentials, but they are secrets on purpose: Actions prints
+a step's `env:` in the run log, which is public on this repo, and only secrets are masked.
 
 Verify with `gh secret list` — it prints names and update times, never values.
 
@@ -81,8 +86,6 @@ Set with `gh variable set NAME --body value`.
 |---|---|---|
 | `FINBERT_MODEL` | `ProsusAI/finbert` | Point at `batestguy/finbert-ng-financial` after Phase 3 to switch the scorer over without a code change |
 | `NBS_INFLATION_URL` | _unset_ | A direct NBS CPI release (CSV or XLSX). Highest-priority inflation tier when set; skipped entirely when not, because a wrong URL fails every run and looks like a network fault |
-| `ALERT_RECIPIENTS_COMMERCIAL` | — | Comma-separated addresses for Commercial Director alerts |
-| `ALERT_RECIPIENTS_SUPPLY` | — | Comma-separated addresses for Supply Chain Manager alerts |
 
 ## Streamlit Cloud secrets
 

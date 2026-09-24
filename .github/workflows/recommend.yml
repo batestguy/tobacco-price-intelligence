@@ -38,8 +38,8 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
-          ALERT_RECIPIENTS_COMMERCIAL: ${{ vars.ALERT_RECIPIENTS_COMMERCIAL }}
-          ALERT_RECIPIENTS_SUPPLY: ${{ vars.ALERT_RECIPIENTS_SUPPLY }}
+          ALERT_RECIPIENTS_COMMERCIAL: ${{ secrets.ALERT_RECIPIENTS_COMMERCIAL }}
+          ALERT_RECIPIENTS_SUPPLY: ${{ secrets.ALERT_RECIPIENTS_SUPPLY }}
         run: python -m tobacco.jobs.recommend
 
       - name: Commit recommendations and memo
