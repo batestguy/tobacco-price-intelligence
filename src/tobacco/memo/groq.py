@@ -21,6 +21,10 @@ log = logging.getLogger(__name__)
 #: replacement: https://console.groq.com/docs/deprecations
 MODEL = "openai/gpt-oss-120b"
 
+#: Opens the fallback memo's body. The dashboard keys on it so it never
+#: attributes a data-only memo to the model.
+FALLBACK_MARKER = "[Automated memo generation unavailable"
+
 #: Verbatim from INTRO.txt §10. Do not reword -- the spec calls it "copy-paste
 #: ready" and the output format below is what the dashboard renders.
 PROMPT_TEMPLATE = """You are a senior business intelligence analyst for a tobacco company in Nigeria.
@@ -149,7 +153,7 @@ def _fallback(prompt: str, reason: str) -> str:
 
     return (
         f"Subject: Strategic Price & Inventory Recommendation – {config.today_wat()}\n\n"
-        f"[Automated memo generation unavailable: {reason}]\n\n"
+        f"{FALLBACK_MARKER}: {reason}]\n\n"
         f"The underlying figures are unaffected:\n\n{data_block}{provenance}\n\n"
         f"Bottom line: review the figures above on the dashboard; narrative "
         f"generation will resume once the Groq API is reachable."
