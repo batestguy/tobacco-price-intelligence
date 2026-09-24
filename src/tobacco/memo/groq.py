@@ -1,9 +1,9 @@
-"""Groq (Llama 3.3 70B) memo generation (INTRO.txt §10).
+"""Groq (GPT-OSS 120B) memo generation (INTRO.txt §10).
 
 The LLM writes **prose only**. Every number in the memo is computed by the
 forecaster and the optimizer and interpolated into the prompt; the model is never
 asked to decide a price, score sentiment, or do arithmetic. That boundary is the
-whole reason a 70B model on a free tier is safe to use here.
+whole reason an open-weight model on a free tier is safe to use here.
 
 The prompt template below is reproduced verbatim from INTRO.txt §10.
 """
@@ -16,7 +16,10 @@ from tobacco import config
 
 log = logging.getLogger(__name__)
 
-MODEL = "llama-3.3-70b-versatile"
+#: INTRO.txt §10 names Llama 3.3 70B. Groq shut ``llama-3.3-70b-versatile`` down
+#: on 2026-08-16 (it now 404s ``model_not_found``) and names this as the
+#: replacement: https://console.groq.com/docs/deprecations
+MODEL = "openai/gpt-oss-120b"
 
 #: Verbatim from INTRO.txt §10. Do not reword -- the spec calls it "copy-paste
 #: ready" and the output format below is what the dashboard renders.
@@ -111,9 +114,16 @@ def generate(**values) -> str:
             model=MODEL,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,  # low: this is a factual brief, not creative writing
-            max_tokens=900,   # ~400 words plus headers, per the spec's limit
+            # A reasoning model: its hidden reasoning is billed against this
+            # budget too, so it is well above the ~900 a 400-word memo needs.
+            # Low effort because the prompt already carries every number.
+            max_tokens=4000,
+            extra_body={"reasoning_effort": "low"},
         )
-        memo = response.choices[0].message.content.strip()
+        memo = (response.choices[0].message.content or "").strip()
+        if not memo:
+            # Every token went on reasoning. An empty memo is not a memo.
+            raise RuntimeError("model returned no memo text (reasoning used the budget)")
         log.info("Generated memo (%d chars) via %s", len(memo), MODEL)
         return memo
     except Exception as exc:  # noqa: BLE001 - a failed memo must not fail the job

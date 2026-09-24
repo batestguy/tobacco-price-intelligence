@@ -13,7 +13,7 @@ project back up.
 | GitHub | Code, versioned data, **all compute** | Actions unmetered on public repos | https://github.com/batestguy/tobacco-price-intelligence |
 | Supabase | Dashboard **Auth only** (login + `users` role lookup) | 500 MB; **pauses after 7 days idle**, and nothing keeps it warm | https://supabase.com/dashboard |
 | Streamlit Community Cloud | Dashboard hosting | 1 GB RAM; sleeps after 12 h idle | https://share.streamlit.io |
-| Groq | Llama 3.3 70B memo generation | ~1000 req/day, 12k tokens/min | https://console.groq.com |
+| Groq | GPT-OSS 120B memo generation (Llama 3.3 70B shut down 2026-08-16) | ~1000 req/day, 12k tokens/min | https://console.groq.com |
 | Hugging Face | Fine-tuned model weights | 100 GB Hub storage | https://huggingface.co/batestguy |
 | Kaggle | T4 GPU for transfer learning | 30 h/week, 12 h/session | https://kaggle.com/code |
 | Gmail | SMTP alerts | 100 emails/day (app password) | https://myaccount.google.com/apppasswords |
