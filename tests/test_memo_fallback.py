@@ -1,9 +1,10 @@
 """The §10 prompt template and the no-key fallback.
 
-With ``GROQ_API_KEY`` unset -- which is the state of the repo today -- ``generate``
-takes the fallback path on every run, so the fallback is not a degraded mode here,
-it is the mode. ``groq`` is imported lazily inside ``generate`` and is never
-reached below.
+With ``GROQ_API_KEY`` unset -- the suite scrubs it -- ``generate`` takes the
+fallback path. That path is also what production gets when Groq is down or a
+memo fails its fact checks (tests/test_memo_grounding.py), so it has to stand on
+its own. ``groq`` is imported lazily inside ``generate`` and is never reached
+below unless a test installs a stub.
 """
 
 from __future__ import annotations
