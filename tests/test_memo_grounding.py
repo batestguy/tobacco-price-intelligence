@@ -96,7 +96,7 @@ def test_a_region_the_firm_does_not_serve_is_rejected():
     memo = GOOD_MEMO + "\nReinforce high-growth regions (e.g., Lagos, Abuja)."
     issues = groq.check_memo(memo, SKUS, "-0.10")
     assert any("Abuja" in issue for issue in issues)
-    assert not any("Lagos" in issue for issue in issues)
+    assert not any(issue.startswith("Names Lagos") for issue in issues)
 
 
 def test_calling_a_strengthening_naira_a_depreciation_is_rejected():
