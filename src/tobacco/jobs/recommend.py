@@ -10,6 +10,7 @@ Gmail hiccup or an exhausted Groq quota must not discard a good day's output.
 from __future__ import annotations
 
 import sys
+from dataclasses import asdict
 
 import numpy as np
 import pandas as pd
@@ -156,6 +157,7 @@ def run() -> int:
             # inactive; passing them through stops the memo reasoning as though
             # a bound applied when none did.
             notes=[inflation_note, *result.notes],
+            skus=[asdict(decision) for decision in result.prices],
         )
         MEMO_DIR.mkdir(parents=True, exist_ok=True)
         memo_path = MEMO_DIR / f"{config.today_wat()}.md"
