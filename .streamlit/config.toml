@@ -1,0 +1,80 @@
+# Dashboard theme: "cured leaf". Streamlit Community Cloud reads this file from
+# the repo root. Secrets never go here; they are set in the Cloud dashboard.
+#
+# Contrast (WCAG AA, all >= 4.5:1 for text), computed rather than eyeballed:
+#   light  text #3A2A1F on page #F6F7F5 ........ 12.8
+#          white on primary #A06320 ............ 4.9   (primary buttons)
+#          primary #A06320 on page ............. 4.5   (links, active tabs)
+#          sidebar text #F3EDE4 on #3A2A1F ..... 11.8
+#          sidebar active #D9A25B on #3A2A1F ... 6.1
+#   dark   text #EDE7DF on page #17130F ........ 15.0
+#          white on primary #A06320 ............ 4.9
+#          link #D9A25B on page ................ 8.2
+# Recompute these if any of the hexes below change.
+
+[server]
+# Serves app/static/ at app/static/: the leaf mark and the view watermarks.
+enableStaticServing = true
+
+[client]
+toolbarMode = "minimal"
+
+[theme]
+font = "'Public Sans':https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&display=swap"
+headingFont = "'Bricolage Grotesque':https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&display=swap"
+baseRadius = "medium"
+showSidebarBorder = false
+headingFontWeights = [700, 600]
+
+[theme.light]
+primaryColor = "#A06320"
+backgroundColor = "#F6F7F5"
+secondaryBackgroundColor = "#ECEEE8"
+textColor = "#3A2A1F"
+borderColor = "#D9D6CF"
+linkColor = "#A06320"
+dataframeHeaderBackgroundColor = "#ECEEE8"
+greenColor = "#4E6B35"
+redColor = "#A33A2A"
+orangeColor = "#A06320"
+yellowColor = "#A67A1E"
+grayColor = "#51606B"
+blueColor = "#51606B"
+# amber, leaf, slate, kiln, gold
+chartCategoricalColors = ["#A06320", "#4E6B35", "#51606B", "#A33A2A", "#A67A1E"]
+# paper -> amber -> barn brown
+chartSequentialColors = ["#F6F1E7", "#F0E1CB", "#EAD1AF", "#E5C293", "#DFB277", "#B98A4F", "#997243", "#7A5A37", "#5A422B", "#3A2A1F"]
+
+[theme.light.sidebar]
+backgroundColor = "#3A2A1F"
+secondaryBackgroundColor = "#4A382B"
+textColor = "#F3EDE4"
+borderColor = "#5A4637"
+primaryColor = "#D9A25B"
+linkColor = "#D9A25B"
+
+[theme.dark]
+primaryColor = "#A06320"
+backgroundColor = "#17130F"
+secondaryBackgroundColor = "#231C17"
+textColor = "#EDE7DF"
+borderColor = "#3A2F26"
+linkColor = "#D9A25B"
+dataframeHeaderBackgroundColor = "#231C17"
+greenColor = "#8FB36A"
+redColor = "#E07A62"
+orangeColor = "#D9A25B"
+yellowColor = "#E0B450"
+grayColor = "#9AAAB5"
+blueColor = "#9AAAB5"
+chartCategoricalColors = ["#D9A25B", "#8FB36A", "#9AAAB5", "#E07A62", "#E0B450"]
+# dark barn -> amber -> pale leaf, so higher values read brighter on a dark page
+chartSequentialColors = ["#2A211A", "#422E1B", "#593B1C", "#71491E", "#88561F", "#B17D41", "#C19662", "#D2B082", "#E2C9A3", "#F3E3C4"]
+
+[theme.dark.sidebar]
+backgroundColor = "#0F0C09"
+secondaryBackgroundColor = "#1E1813"
+textColor = "#EDE7DF"
+borderColor = "#2E251E"
+primaryColor = "#D9A25B"
+linkColor = "#D9A25B"

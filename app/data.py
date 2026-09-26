@@ -15,6 +15,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import labels
 import pandas as pd
 import streamlit as st
 
@@ -34,7 +35,7 @@ def load(dataset: str) -> pd.DataFrame:
     try:
         return parquet_io.read(dataset)
     except Exception as exc:  # noqa: BLE001 - an empty panel beats a stack trace
-        st.warning(f"Could not load {dataset}: {exc}")
+        st.caption(f":material/warning: Could not load {labels.dataset(dataset)}: {exc}")
         return pd.DataFrame()
 
 
@@ -90,13 +91,13 @@ INFLATION_BASIS = {
         "World Bank Global Economic Monitor, indicator CPTOTSAXNZGY — monthly "
         "and current, but a seasonally adjusted World Bank staff calculation "
         "rather than the headline rate NBS publishes.",
-        "⚠️ World Bank GEM, seasonally adjusted — not NBS's published figure",
+        ":material/info: World Bank estimate, seasonally adjusted. Not the NBS headline figure.",
     ),
     "worldbank_annual": (
         "Annual",
         "World Bank FP.CPI.TOTL.ZG — the last full calendar year, carried "
         "forward. No monthly series is currently reachable.",
-        "⚠️ Annual basis — no monthly series available",
+        ":material/info: Annual figure. No monthly series is available.",
     ),
 }
 
@@ -114,7 +115,7 @@ def latest_inflation() -> tuple[float | None, str | None, str | None, str | None
         (
             "Unknown basis",
             f"Unrecognised source tier '{source}'",
-            f"⚠️ Unrecognised source tier '{source}'",
+            f":material/warning: Unrecognised source tier '{source}'",
         ),
     )
     observed = pd.to_datetime(row["date"]).date()
