@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Leaf mark">
+  <!-- Original mark for this project: a single cured leaf. Not derived from any
+       company logo. Amber runs from #D9A25B (legible on the barn-brown sidebar)
+       to #A06320 (legible on the light page). -->
+  <defs>
+    <linearGradient id="cure" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#A06320"/>
+      <stop offset="1" stop-color="#D9A25B"/>
+    </linearGradient>
+  </defs>
+  <path d="M13 53 C 6 33, 22 11, 55 8 C 54 36, 36 55, 13 53 Z" fill="url(#cure)"/>
+  <g fill="none" stroke="#F6EBDD" stroke-linecap="round" opacity="0.85">
+    <path d="M13 53 Q 30 36 52 11" stroke-width="2.2"/>
+    <path d="M22 43 Q 17 36 17 29" stroke-width="1.4"/>
+    <path d="M29 35 Q 24 27 26 20" stroke-width="1.4"/>
+    <path d="M37 26 Q 34 20 37 14" stroke-width="1.4"/>
+    <path d="M25 40 Q 33 42 40 39" stroke-width="1.4"/>
+    <path d="M33 31 Q 41 33 47 29" stroke-width="1.4"/>
+    <path d="M41 22 Q 47 23 51 20" stroke-width="1.4"/>
+  </g>
+  <path d="M13 53 L 7 59" stroke="#A06320" stroke-width="2.6" stroke-linecap="round"/>
+</svg>

@@ -174,3 +174,28 @@ def test_each_role_lands_on_a_readable_view(role):
     at.session_state["role"] = role
     at.run()
     _assert_readable(at)
+
+
+def test_every_static_asset_the_app_references_exists():
+    """A missing watermark or font fails silently in the browser, so check here."""
+    import sys
+    import tomllib
+
+    sys.path[:0] = [str(APP), str(SRC)]
+    import views
+
+    assert views.LOGO.is_file()
+    assert views.PLATE.is_file()
+    for filename, _ in views.WATERMARKS.values():
+        assert (APP / "static" / "watermarks" / filename).is_file(), filename
+
+    theme = tomllib.loads((REPO / ".streamlit" / "config.toml").read_text(encoding="utf-8"))
+    faces = theme["theme"]["fontFaces"]
+    assert {f["family"] for f in faces} == {theme["theme"]["font"], theme["theme"]["headingFont"]}
+    for face in faces:
+        # Served at app/static/... from the app directory's static/ folder.
+        assert (APP / face["url"].removeprefix("app/")).is_file(), face["url"]
+
+    credits = (APP / "static" / "CREDITS.md").read_text(encoding="utf-8")
+    for filename, _ in views.WATERMARKS.values():
+        assert filename in credits, filename
