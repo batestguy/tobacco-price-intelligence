@@ -98,21 +98,11 @@ does **not** inherit GitHub secrets.
 ```toml
 SUPABASE_URL = "https://<project>.supabase.co"
 SUPABASE_ANON_KEY = "<anon key, NOT the service key>"
-
-# Optional: "Explore as ..." buttons on the sign-in page. Only these two roles are
-# honoured; an admin entry is ignored. Each is an ordinary Supabase user, and its
-# role still comes from the `users` table -- grant it there (see schema.sql).
-[DEMO_ACCOUNTS.commercial_director]
-email = "<demo account email>"
-password = "<demo account password>"
-
-[DEMO_ACCOUNTS.supply_chain_manager]
-email = "<demo account email>"
-password = "<demo account password>"
 ```
 
-`DEMO_ACCOUNTS` lives **only** here, never in Actions. The app never renders the demo email
-or password; a demo session shows "Demo account" in their place.
+The public demo needs nothing here. "Explore as Commercial Director / Supply Chain Manager"
+opens that view in a labelled demo session with no account, password or Supabase call, so it
+keeps working while the free project is paused. A demo session is never an administrator.
 
 The app is publicly reachable, so it gets the **anon** key only. Note what the login is and
 is not: it routes users to their role's views (§6) and satisfies §11's "authorized personnel
@@ -130,7 +120,7 @@ The full runbook, with what breaks if you skip each step, is in
    URL and anon key go to Streamlit in step 5, and to Actions for `keepalive.yml`.
 3. `gh secret set` the eight secrets above.
 4. `gh workflow run scrape.yml` — confirm a Parquet file is committed by the Actions bot.
-5. Deploy `app/streamlit_app.py` on Streamlit Cloud; add its secrets separately (`DEMO_ACCOUNTS` is optional).
+5. Deploy `app/streamlit_app.py` on Streamlit Cloud; add its two secrets separately.
 6. Record the resulting dashboard URL in the table above.
 
 ## Workflows

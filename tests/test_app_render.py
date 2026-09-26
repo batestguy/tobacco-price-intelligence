@@ -201,17 +201,6 @@ def test_every_static_asset_the_app_references_exists():
         assert filename in credits, filename
 
 
-DEMO_SECRETS = {
-    "SUPABASE_URL": "https://example.invalid",
-    "SUPABASE_ANON_KEY": "anon-test",
-    "DEMO_ACCOUNTS": {
-        "commercial_director": {"email": "demo-cd@example.com", "password": "cd-secret-pw"},
-        "supply_chain_manager": {"email": "demo-scm@example.com", "password": "scm-secret-pw"},
-        "admin": {"email": "demo-admin@example.com", "password": "admin-secret-pw"},
-    },
-}
-
-
 def _all_text(at: AppTest) -> list[str]:
     """Every string the page renders that a viewer could read."""
     text = [el.value for kind in ("title", "header", "subheader", "markdown", "caption",
@@ -222,32 +211,38 @@ def _all_text(at: AppTest) -> list[str]:
     return [str(t) for t in text if t]
 
 
-def test_sign_in_page_offers_demo_buttons_without_revealing_credentials():
+@pytest.mark.parametrize("configured", [True, False])
+def test_sign_in_page_always_offers_the_two_demo_views(configured):
+    """Demo sessions need no Supabase, so they show even when sign-in is down."""
     at = _app()
-    for key, value in DEMO_SECRETS.items():
-        at.secrets[key] = value
+    if configured:
+        at.secrets["SUPABASE_URL"] = "https://example.invalid"
+        at.secrets["SUPABASE_ANON_KEY"] = "anon-test"
     at.run()
     assert not at.exception, [e.value for e in at.exception]
-
     buttons = [b.label for b in at.button]
     assert "Explore as Commercial Director" in buttons
     assert "Explore as Supply Chain Manager" in buttons
     assert not any("Administrator" in label for label in buttons)
-
-    rendered = " ".join(_all_text(at))
-    for account in DEMO_SECRETS["DEMO_ACCOUNTS"].values():
-        assert account["email"] not in rendered
-        assert account["password"] not in rendered
     assert config.DISCLAIMER in [c.value for c in at.caption]
 
 
-def test_sign_in_page_without_demo_accounts_has_no_demo_buttons():
+@pytest.mark.parametrize(
+    "role, headline",
+    [("commercial_director", "Raise prices this week"),
+     ("supply_chain_manager", "1 of 12 at risk of running out")],
+)
+def test_a_demo_button_opens_its_view_offline(role, headline):
+    """Click through, with the network blocked by conftest: no Supabase call."""
     at = _app()
-    at.secrets["SUPABASE_URL"] = "https://example.invalid"
-    at.secrets["SUPABASE_ANON_KEY"] = "anon-test"
     at.run()
-    assert not at.exception
-    assert not [b for b in at.button if b.label.startswith("Explore as")]
+    at.button(key=f"demo-{role}").click().run()
+    assert not at.exception, [e.value for e in at.exception]
+    assert at.title[0].value == headline
+    rendered = " ".join(_all_text(at))
+    assert "Demo session" in rendered
+    assert "Leave demo" in [b.label for b in at.button]
+    _assert_readable(at)
 
 
 @pytest.mark.parametrize("role", [None, "superuser"])
@@ -263,19 +258,6 @@ def test_a_user_without_a_role_sees_no_view(role):
     assert "Sign out" in [b.label for b in at.button]
     assert not at.metric and not at.get("plotly_chart") and not at.dataframe
     assert config.DISCLAIMER in [c.value for c in at.caption]
-
-
-def test_a_demo_session_never_shows_its_email():
-    at = _app()
-    at.session_state["access_token"] = "test-token"
-    at.session_state["user_email"] = "demo-cd@example.com"
-    at.session_state["role"] = "commercial_director"
-    at.session_state["demo"] = True
-    at.run()
-    assert not at.exception, [e.value for e in at.exception]
-    rendered = " ".join(_all_text(at))  # the tree includes the sidebar
-    assert "demo-cd@example.com" not in rendered
-    assert "Demo account" in rendered
 
 
 def test_admin_user_table_renders_in_words(monkeypatch):

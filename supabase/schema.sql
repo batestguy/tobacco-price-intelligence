@@ -105,6 +105,11 @@ as $$
     );
 $$;
 
+-- Callable by signed-in sessions only. For anon, auth.uid() is null so it could
+-- only ever answer false, but there is no reason to expose it at all.
+revoke execute on function public.is_admin() from public, anon;
+grant execute on function public.is_admin() to authenticated;
+
 -- A user may read their own role row.
 drop policy if exists users_read_self on users;
 create policy users_read_self on users
@@ -117,29 +122,37 @@ create policy users_admin_read_all on users
     for select to authenticated
     using (public.is_admin());
 
--- ...and change any role.
+-- ...and change any role but their own. The self-exclusion is enforced here, not
+-- only in the dashboard, so an administrator cannot lock themselves out even by
+-- calling the REST API directly.
 drop policy if exists users_admin_update on users;
 create policy users_admin_update on users
     for update to authenticated
-    using (public.is_admin())
-    with check (public.is_admin());
+    using (public.is_admin() and id <> auth.uid())
+    with check (public.is_admin() and id <> auth.uid());
 
--- There is NO insert and NO delete policy, so no client can do either. Rows are
--- created by the trigger above. Revoking access means setting the role back to
--- null, which keeps the row so the role can be granted again later.
+-- Policies choose rows, not columns. Supabase grants `authenticated` every
+-- privilege on a new public table, so narrow UPDATE to the one column the
+-- dashboard edits: email, username and id stay as the trigger wrote them.
+revoke insert, update, delete on public.users from anon, authenticated;
+grant update (role) on public.users to authenticated;
+
+-- There is NO insert and NO delete privilege or policy, so no client can do
+-- either. Rows are created by the trigger above. Revoking access means setting
+-- the role back to null, which keeps the row so the role can be granted again.
 
 -- ===========================================================================
 -- granting a role
 --
--- New sign-ups -- including the demo accounts -- arrive with no access. Grant a
+-- New sign-ups arrive with no access. Grant a
 -- role by email, here or from the dashboard's Administration view once one
 -- administrator exists:
 --
 --   update users set role = 'admin' where email = 'you@example.com';
 --   update users set role = 'supply_chain_manager' where email = 'someone@example.com';
 --
--- Roles: 'commercial_director' | 'supply_chain_manager' | 'admin'. Never make a
--- demo account an administrator.
+-- Roles: 'commercial_director' | 'supply_chain_manager' | 'admin'. The public
+-- demo needs no account: it opens a non-admin view without touching Supabase.
 --
 -- Optional: disable public sign-ups under Authentication -> Sign In / Providers
 -- in the Supabase dashboard. It is not required, because a new sign-up is

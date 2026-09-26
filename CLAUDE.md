@@ -163,7 +163,7 @@ The repo is public, so these are correctness issues, not hygiene preferences.
   unconditionally — do not weaken that guard, and do not add a column that carries article
   text under another name.
 - **No secrets.** The workflows' eight live in GitHub Actions secrets (listed in
-  `REGISTRY.md`), and Streamlit Cloud's three are set separately in its own dashboard. Never a literal key in code, a committed `.env`, or a workflow
+  `REGISTRY.md`), and Streamlit Cloud's two are set separately in its own dashboard. Never a literal key in code, a committed `.env`, or a workflow
   `echo` that would print one into a public log.
 - **No real company data.** Sales are synthetic (`sources/sales_mock.py`). This is what lets
   the repo be public at all.
@@ -199,8 +199,8 @@ Each of these silently breaks the pipeline rather than failing loudly:
   `SUPABASE_URL` and `SUPABASE_ANON_KEY` are set there *and* as Actions secrets, where only
   `keepalive.yml` reads them. It is the anon key in both places; the `service_role` key is
   not used by this project at all. The app is publicly reachable and the anon key ships to
-  the browser session. `DEMO_ACCOUNTS` (the demo sign-in credentials) lives only in
-  Streamlit Cloud secrets — never in Actions, and never rendered by the app.
+  the browser session. The public demo ("Explore as ...") needs no secret at all: it opens a
+  non-admin view without an account and never calls Supabase (`auth.start_demo`).
 
 ## Data model
 

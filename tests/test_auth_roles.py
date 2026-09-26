@@ -133,82 +133,44 @@ def test_rejected_credentials_do_not_sign_in(fake_st, calls):
 
 
 # ---------------------------------------------------------------------------
-# demo accounts
+# demo sessions
 # ---------------------------------------------------------------------------
 
 
-def test_demo_accounts_parses_the_two_honoured_roles(fake_st):
-    fake_st.secrets["DEMO_ACCOUNTS"] = {
-        "commercial_director": {"email": "cd@example.com", "password": "p1"},
-        "supply_chain_manager": {"email": "scm@example.com", "password": "p2"},
-    }
-    assert auth.demo_accounts() == {
-        "commercial_director": {"email": "cd@example.com", "password": "p1"},
-        "supply_chain_manager": {"email": "scm@example.com", "password": "p2"},
-    }
+@pytest.mark.parametrize("role", ["commercial_director", "supply_chain_manager"])
+def test_a_demo_session_opens_its_view_without_any_request(fake_st, calls, role):
+    assert auth.start_demo(role) is True
+    user = auth.current_user()
+    assert user["role"] == role
+    assert user["demo"] is True
+    assert user["email"] == "Demo session"
+    assert not calls["get"] and not calls["post"]
 
 
-def test_demo_accounts_ignores_admin(fake_st):
-    fake_st.secrets["DEMO_ACCOUNTS"] = {
-        "admin": {"email": "a@example.com", "password": "p"},
-        "commercial_director": {"email": "cd@example.com", "password": "p1"},
-    }
-    assert set(auth.demo_accounts()) == {"commercial_director"}
+@pytest.mark.parametrize("role", ["admin", "superuser", None])
+def test_a_demo_session_is_never_an_administrator(fake_st, role):
+    assert auth.start_demo(role) is False
+    assert auth.current_user() is None
 
 
-def test_demo_accounts_missing_secret_is_empty(fake_st):
-    assert auth.demo_accounts() == {}
-
-
-@pytest.mark.parametrize(
-    "value",
-    [
-        "not a table",
-        ["commercial_director"],
-        {"commercial_director": "cd@example.com"},
-        {"commercial_director": {"email": "cd@example.com"}},
-        {"supply_chain_manager": {"email": "", "password": "p"}},
-        {"commercial_director": {"email": 1, "password": 2}},
-    ],
-)
-def test_demo_accounts_malformed_is_empty(fake_st, value):
-    fake_st.secrets["DEMO_ACCOUNTS"] = value
-    assert auth.demo_accounts() == {}
-
-
-def test_sign_in_demo_takes_the_role_from_users_not_the_secret(fake_st, calls):
-    fake_st.secrets["DEMO_ACCOUNTS"] = {
-        "commercial_director": {"email": "cd@example.com", "password": "p1"},
-    }
-    # The users table has not granted this account anything yet.
-    calls["responses"].update(_session(FakeResponse(200, [{"role": None}])))
-    ok, _ = auth.sign_in_demo("commercial_director")
-    assert ok
-    assert calls["post"][0]["json"] == {"email": "cd@example.com", "password": "p1"}
+def test_a_forged_demo_role_in_session_state_is_no_access(fake_st):
+    fake_st.session_state.update(demo=True, role="admin")
     user = auth.current_user()
     assert user["role"] is None
-    assert user["email"] == "Demo account"
+    assert user["problem"]
 
 
-def test_sign_in_demo_failure_does_not_echo_credentials(fake_st, calls):
-    fake_st.secrets["DEMO_ACCOUNTS"] = {
-        "supply_chain_manager": {"email": "scm@example.com", "password": "p2"},
-    }
-    calls["responses"]["post"] = FakeResponse(400, {})
-    ok, message = auth.sign_in_demo("supply_chain_manager")
-    assert not ok
-    assert "scm@example.com" not in message and "p2" not in message
-    assert auth.sign_in_demo("admin")[0] is False
+def test_starting_a_demo_replaces_a_signed_in_session(fake_st):
+    fake_st.session_state.update(access_token="jwt", user_id="u1", role="admin")
+    auth.start_demo("commercial_director")
+    assert "access_token" not in fake_st.session_state
+    assert auth.current_user()["role"] == "commercial_director"
 
 
-def test_sign_out_clears_the_demo_flag(fake_st, calls):
-    fake_st.secrets["DEMO_ACCOUNTS"] = {
-        "commercial_director": {"email": "cd@example.com", "password": "p1"},
-    }
-    calls["responses"].update(_session(FakeResponse(200, [{"role": "commercial_director"}])))
-    auth.sign_in_demo("commercial_director")
+def test_sign_out_ends_a_demo_session(fake_st):
+    auth.start_demo("supply_chain_manager")
     auth.sign_out()
-    assert fake_st.session_state == {}
+    assert auth.current_user() is None
 
 
 # ---------------------------------------------------------------------------

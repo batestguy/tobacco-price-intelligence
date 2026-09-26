@@ -55,6 +55,7 @@ def render_login() -> None:
             "from exchange rates, inflation and the news."
         )
 
+        render_demo_buttons()
         if not auth.configured():
             st.error(
                 "Sign-in is not configured. Set `SUPABASE_URL` and `SUPABASE_ANON_KEY` "
@@ -64,7 +65,6 @@ def render_login() -> None:
                 icon=":material/key_off:",
             )
         else:
-            render_demo_buttons()
             with st.form("login", border=False):
                 email = st.text_input("Email")
                 password = st.text_input("Password", type="password")
@@ -81,27 +81,17 @@ def render_login() -> None:
 
 
 def render_demo_buttons() -> None:
-    """One button per demo account in the ``DEMO_ACCOUNTS`` secret.
-
-    Only the role is shown. The demo email and password stay in the secret and
-    in ``auth``; nothing here renders either.
-    """
-    accounts = auth.demo_accounts()
-    if not accounts:
-        return
+    """Open a non-admin view without an account (see ``auth.start_demo``)."""
     for role in auth.DEMO_ROLES:
-        if role not in accounts:
-            continue
         if st.button(
             f"Explore as {labels.role(role)}", key=f"demo-{role}",
             icon=":material/visibility:", width="stretch",
         ):
-            ok, message = auth.sign_in_demo(role)
-            if ok:
-                st.rerun()
-            st.error(message, icon=":material/error:")
+            auth.start_demo(role)
+            st.rerun()
     st.caption(
-        "No sign-up needed. Demo accounts are read-only views of the same public data."
+        "No sign-up needed. The demo opens a read-only view of the same public data "
+        "the team sees. Team members sign in below."
     )
     st.divider()
 
@@ -169,7 +159,8 @@ def main() -> None:
     with st.sidebar:
         st.markdown(f"**{labels.role(role)}**")
         st.caption(user["email"])
-        if st.button("Sign out", icon=":material/logout:"):
+        leave = "Leave demo" if user.get("demo") else "Sign out"
+        if st.button(leave, icon=":material/logout:"):
             auth.sign_out()
             st.rerun()
 

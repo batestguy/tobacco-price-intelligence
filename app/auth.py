@@ -21,12 +21,12 @@ null role, an unknown role, or a role lookup that failed gets no view at all.
 New sign-ups arrive pending, so public sign-up on the Supabase project cannot
 hand anyone a view.
 
-**Demo accounts** let a visitor explore without signing up. Their credentials
-live only in the Streamlit Cloud secret ``DEMO_ACCOUNTS``; the password is never
-rendered, and the session token stays in server-side session state. A demo
-account is an ordinary Supabase user whose role comes from ``users`` like anyone
-else's -- the secret supplies credentials, not a role -- and it is never an
-administrator.
+**Demo sessions** let a visitor explore without an account. "Explore as ..."
+opens a non-admin view directly, with no Supabase account, password or secret
+behind it: login is not a confidentiality boundary here, so a shared demo
+password would protect nothing, and a demo that never calls Supabase keeps
+working even when the free project is paused. A demo session has no token, so
+the admin helpers below cannot run in one, and it is never an administrator.
 
 The spec's §6 mentions ``dash-auth`` as an alternative. That is a static
 user:password dict compiled into the app, which on a public repo would mean
@@ -34,8 +34,6 @@ committing credentials. Supabase Auth is used instead.
 """
 
 from __future__ import annotations
-
-from collections.abc import Mapping
 
 import requests
 import streamlit as st
@@ -46,7 +44,7 @@ TIMEOUT = 20
 #: Roles a view can be granted to. Anything else in ``users.role`` is no access.
 ROLES = ("commercial_director", "supply_chain_manager", "admin")
 
-#: Roles a demo account may stand for. Never ``admin``.
+#: Roles a demo session may open. Never ``admin``.
 DEMO_ROLES = ("commercial_director", "supply_chain_manager")
 
 #: Why a signed-in user has no view. Stored in session state beside ``role``.
@@ -121,7 +119,6 @@ def sign_in(email: str, password: str) -> tuple[bool, str]:
         return False, "The authentication service returned an incomplete session."
 
     role, problem = _fetch_role(token, user["id"])
-    st.session_state.pop("demo", None)
     st.session_state["access_token"] = token
     st.session_state["user_id"] = user["id"]
     st.session_state["user_email"] = user.get("email", email)
@@ -157,38 +154,14 @@ def _fetch_role(token: str, user_id: str) -> tuple[str | None, str | None]:
     return role, None
 
 
-def demo_accounts() -> dict[str, dict[str, str]]:
-    """``{role: {"email", "password"}}`` from the ``DEMO_ACCOUNTS`` secret.
-
-    Only the two non-admin roles are honoured; an entry that is missing or
-    malformed is skipped, and no secret at all is ``{}``.
-    """
-    table = _config("DEMO_ACCOUNTS")
-    if not isinstance(table, Mapping):
-        return {}
-    accounts = {}
-    for role in DEMO_ROLES:
-        entry = table.get(role)
-        if not isinstance(entry, Mapping):
-            continue
-        email, password = entry.get("email"), entry.get("password")
-        if isinstance(email, str) and isinstance(password, str) and email and password:
-            accounts[role] = {"email": email, "password": password}
-    return accounts
-
-
-def sign_in_demo(role: str) -> tuple[bool, str]:
-    """Sign in with the demo account for ``role``. The role still comes from ``users``."""
-    account = demo_accounts().get(role)
-    if account is None:
-        return False, "That demo account is not available."
-    ok, message = sign_in(account["email"], account["password"])
-    if not ok:
-        # Never echo anything about the demo credentials back, even in an error.
-        return False, "The demo account could not sign in."
-    # Flagged so the app shows "Demo account" wherever it would show an email.
+def start_demo(role: str) -> bool:
+    """Open a demo session for a non-admin ``role``. No account, no network."""
+    if role not in DEMO_ROLES:
+        return False
+    sign_out()
     st.session_state["demo"] = True
-    return True, message
+    st.session_state["role"] = role
+    return True
 
 
 def sign_out() -> None:
@@ -198,6 +171,15 @@ def sign_out() -> None:
 
 def current_user() -> dict | None:
     """The signed-in user, or ``None``. ``role`` is ``None`` when they have no access."""
+    if st.session_state.get("demo"):
+        role = st.session_state.get("role")
+        return {
+            "id": None,
+            "email": "Demo session",
+            "role": role if role in DEMO_ROLES else None,
+            "problem": None if role in DEMO_ROLES else NO_ROLE,
+            "demo": True,
+        }
     if not st.session_state.get("access_token"):
         return None
     role = st.session_state.get("role")
@@ -205,13 +187,10 @@ def current_user() -> dict | None:
         role = None
     return {
         "id": st.session_state.get("user_id"),
-        # A demo account's address is part of its credentials; never display it.
-        "email": (
-            "Demo account" if st.session_state.get("demo")
-            else st.session_state.get("user_email")
-        ),
+        "email": st.session_state.get("user_email"),
         "role": role,
         "problem": None if role else (st.session_state.get("role_problem") or NO_ROLE),
+        "demo": False,
     }
 
 
