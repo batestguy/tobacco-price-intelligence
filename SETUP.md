@@ -212,11 +212,21 @@ kaggle kernels status <kaggle-username>/finbert-ng-financial   # poll until comp
 kaggle kernels output <kaggle-username>/finbert-ng-financial -p out/
 ```
 
-**The CLI cannot attach secrets.** Before the first push, open the kernel once in the
-web editor and tick `HF_TOKEN` under Add-ons → Secrets. Without it, the push cell
-fails and nothing is uploaded, though training still runs. Whether that attachment
-survives later `kernels push` calls has **not been verified**: check the first CLI
-run's log for the push.
+**The CLI cannot attach secrets**, so a CLI run cannot push to the Hub itself. The
+notebook handles that: it always saves the weights and `metrics.json` to
+`/kaggle/working`, and pushes only when an `HF_TOKEN` secret is attached. A CLI run's
+weights reach the Hub through a GitHub Release and `publish-model.yml`, which pushes
+with the repo's own `HF_TOKEN` secret:
+
+```bash
+kaggle kernels output <kaggle-username>/finbert-ng-financial -p out/
+cat out/metrics.json                       # tuned must beat base
+tar -czf finbert-ng-financial.tar.gz -C out finbert-ng-financial
+gh release create finbert-ng-v1 finbert-ng-financial.tar.gz     --title "FinBERT fine-tune v1" --notes "Weights for publish-model.yml"
+gh workflow run publish-model.yml -f tag=finbert-ng-v1
+```
+
+The notebook also sets `enable_internet`, which needs a phone-verified Kaggle account.
 
 **Why not Colab?** The Colab CLI (`colab run --gpu T4 script.py`) exists and is
 signed in under WSL, but it runs a `.py` script rather than this notebook. It has
