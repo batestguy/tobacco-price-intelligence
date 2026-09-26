@@ -8,6 +8,13 @@ on:
     workflows: ["scrape"]
     types: [completed]
   workflow_dispatch:
+    inputs:
+      rescore:
+        # After changing the FINBERT_MODEL variable: re-score every headline and
+        # rebuild every aggregate day, not just the unscored rows.
+        description: "Re-score every headline (use after changing FINBERT_MODEL)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -62,6 +69,8 @@ jobs:
           PYTHONPATH: src
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           FINBERT_MODEL: ${{ vars.FINBERT_MODEL }}
+          # Empty on workflow_run, so chained runs keep scoring new rows only.
+          RESCORE: ${{ inputs.rescore }}
           # Silence the tokenizers fork warning that otherwise fills the log.
           TOKENIZERS_PARALLELISM: "false"
         run: python -m tobacco.jobs.score

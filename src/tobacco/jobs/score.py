@@ -4,6 +4,13 @@ Runs after ``scrape`` and is the only job that installs torch. It scores
 **unscored headlines only**, so a re-run costs nothing and the model never
 re-processes a backlog it has already seen.
 
+The exception is a **rescore** (``RESCORE=true``, the ``rescore`` input on a
+manual dispatch of ``score.yml``). A score is only as current as the checkpoint
+that produced it, so changing ``FINBERT_MODEL`` leaves every existing row on the
+old model. A rescore re-scores every headline, uncapped, and rebuilds
+``sentiment_aggregates`` from the first headline rather than the trailing window,
+so no day is left mixing two models.
+
 VADER is not run here: social post text cannot be persisted (see
 ``sources.social``), so it is scored inline at collection time. This job consumes
 the scores that scrape already stored.
@@ -11,6 +18,7 @@ the scores that scrape already stored.
 
 from __future__ import annotations
 
+import os
 import sys
 
 import pandas as pd
@@ -26,20 +34,33 @@ log = config.setup_logging("score")
 MAX_PER_RUN = 500
 
 
-def score_news() -> int:
-    """Score any headline with a null ``finbert_score``. Returns rows scored."""
+def rescore_requested() -> bool:
+    """True when the dispatch asked for every headline to be re-scored."""
+    return os.environ.get("RESCORE", "").strip().lower() == "true"
+
+
+def score_news(rescore: bool = False) -> int:
+    """Score any headline with a null ``finbert_score``, or every headline when
+    ``rescore`` is set. Returns rows scored."""
     articles = parquet_io.read("news_articles")
     if articles.empty:
         log.info("No articles to score")
         return 0
 
-    unscored = articles[articles["finbert_score"].isna()]
-    if unscored.empty:
-        log.info("All %d article(s) already scored", len(articles))
-        return 0
+    if rescore:
+        # Uncapped: the cap exists to bound a surprise backlog, and a capped
+        # rescore would re-score the newest MAX_PER_RUN rows on every dispatch
+        # and never reach the rest.
+        batch = articles.copy()
+        log.info("Rescoring all %d headline(s)", len(batch))
+    else:
+        unscored = articles[articles["finbert_score"].isna()]
+        if unscored.empty:
+            log.info("All %d article(s) already scored", len(articles))
+            return 0
 
-    batch = unscored.sort_values("published_at", ascending=False).head(MAX_PER_RUN).copy()
-    log.info("Scoring %d of %d unscored headline(s)", len(batch), len(unscored))
+        batch = unscored.sort_values("published_at", ascending=False).head(MAX_PER_RUN).copy()
+        log.info("Scoring %d of %d unscored headline(s)", len(batch), len(unscored))
 
     batch["finbert_score"] = finbert.score_headlines(batch["headline"].tolist())
     batch["scored_at"] = pd.Timestamp(config.now_wat().replace(tzinfo=None))
@@ -48,14 +69,21 @@ def score_news() -> int:
     return len(batch)
 
 
-def build_aggregates() -> pd.DataFrame:
+def build_aggregates(full: bool = False) -> pd.DataFrame:
     """Daily ``sentiment_aggregates`` (INTRO.txt §2).
 
     Recomputed for a trailing window rather than only for today: the scoring job
     may have just filled in scores for older articles, which changes their day's
-    aggregate. Upserting the window keeps history consistent.
+    aggregate. Upserting the window keeps history consistent. ``full`` widens the
+    window to the first headline, which a rescore needs because it changed every
+    day's scores.
     """
     window_start = pd.Timestamp(config.today_wat()) - pd.Timedelta(days=14)
+    if full:
+        articles = parquet_io.read("news_articles")
+        if not articles.empty:
+            first = pd.to_datetime(articles["published_at"]).min().normalize()
+            window_start = min(window_start, first)
 
     articles = parquet_io.read("news_articles", since=window_start)
     posts = parquet_io.read("social_posts", since=window_start)
@@ -105,9 +133,10 @@ def build_aggregates() -> pd.DataFrame:
 
 def run() -> int:
     log.info("Scoring starting at %s WAT", config.now_wat().isoformat(timespec="seconds"))
+    rescore = rescore_requested()
     try:
-        scored = score_news()
-        aggregates = build_aggregates()
+        scored = score_news(rescore=rescore)
+        aggregates = build_aggregates(full=rescore)
     except Exception as exc:  # noqa: BLE001
         log.exception("Scoring failed: %s", exc)
         return 1

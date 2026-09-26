@@ -211,6 +211,12 @@ longer carries a second copy to keep in step (departure 5).
 
 `INTRO.txt` §2 remains authoritative on what those datasets should contain.
 
+`finbert_score` is written once per headline and is only as current as the checkpoint that
+produced it. After changing `FINBERT_MODEL`, dispatch `gh workflow run score.yml -f
+rescore=true`: it re-scores every headline (ignoring `MAX_PER_RUN`) and rebuilds
+`sentiment_aggregates` from the first headline, so no day mixes two models. Scheduled runs
+never rescore.
+
 ## Regulatory constraint
 
 This is **internal decision-support** for pricing and supply chain — it does not promote or
