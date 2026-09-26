@@ -226,6 +226,12 @@ gh release create finbert-ng-v1 finbert-ng-financial.tar.gz     --title "FinBERT
 gh workflow run publish-model.yml -f tag=finbert-ng-v1
 ```
 
+On a connection that drops large downloads, skip the local copy: pass the output's
+signed download URLs instead (`list_kernel_session_output` in the Kaggle SDK returns
+one per file, no auth needed to fetch), and the runner fetches the weights itself:
+`gh workflow run publish-model.yml -f urls='{"config.json": "…", "model.safetensors": "…", …}'`.
+The job masks them, but they are short-lived; dispatch right after generating them.
+
 The notebook also sets `enable_internet`, which needs a phone-verified Kaggle account.
 
 **Why not Colab?** The Colab CLI (`colab run --gpu T4 script.py`) exists and is

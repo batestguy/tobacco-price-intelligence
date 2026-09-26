@@ -1,20 +1,27 @@
 name: publish-model
 
-# Pushes fine-tuned FinBERT weights from a GitHub Release asset to the HF Hub.
+# Pushes fine-tuned FinBERT weights to the HF Hub with the repo's HF_TOKEN secret.
 #
-# A Kaggle run submitted with the CLI cannot attach the HF_TOKEN secret, so the
-# notebook saves the weights as its output instead of pushing them. Those weights
-# are attached to a release (git is no place for ~420 MB, and LFS is ruled out),
-# and this job does the push with the repo's own HF_TOKEN secret.
+# A Kaggle run submitted with the CLI cannot attach that secret, so the notebook
+# saves the weights as its output instead of pushing them. They reach this job
+# one of two ways:
 #
-#   gh release create finbert-ng-v1 finbert-ng-financial.tar.gz ...
+#   urls  a JSON object {filename: url} of the Kaggle output's signed download
+#         URLs. The runner fetches them directly, so ~440 MB never crosses the
+#         submitting machine's connection. Preferred.
+#   tag   a GitHub Release holding finbert-ng-financial.tar.gz.
+#
+#   gh workflow run publish-model.yml -f urls="$(cat urls.json)"
 #   gh workflow run publish-model.yml -f tag=finbert-ng-v1
 on:
   workflow_dispatch:
     inputs:
+      urls:
+        description: "JSON {filename: signed Kaggle output URL}"
+        required: false
       tag:
-        description: "Release tag holding finbert-ng-financial.tar.gz"
-        required: true
+        description: "Or: release tag holding finbert-ng-financial.tar.gz"
+        required: false
       repo_id:
         description: "HF Hub model repo to push to"
         default: "batestguy/finbert-ng-financial"
@@ -27,15 +34,30 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Download the release asset
+      - name: Fetch the weights
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          REPO: ${{ github.repository }}
+        # The signed URLs are read from the event payload, never interpolated
+        # into this script, and masked before use: this is a public repo's log.
         run: |
-          gh release download "${{ inputs.tag }}" \
-            --repo "${{ github.repository }}" \
-            --pattern finbert-ng-financial.tar.gz
           mkdir model
-          tar -xzf finbert-ng-financial.tar.gz -C model --strip-components=1
+          urls=$(jq -r '.inputs.urls // ""' "$GITHUB_EVENT_PATH")
+          if [ -n "$urls" ]; then
+            jq -r '.inputs.urls | fromjson | .[]' "$GITHUB_EVENT_PATH" |
+              while read -r u; do echo "::add-mask::$u"; done
+            jq -r '.inputs.urls | fromjson | to_entries[] | .key + " " + .value' "$GITHUB_EVENT_PATH" |
+              while read -r name u; do
+                curl -sSfL --retry 5 --retry-all-errors -o "model/$(basename "$name")" "$u"
+              done
+          elif [ -n "$TAG" ]; then
+            gh release download "$TAG" --repo "$REPO" --pattern finbert-ng-financial.tar.gz
+            tar -xzf finbert-ng-financial.tar.gz -C model --strip-components=1
+          else
+            echo "::error::Pass either urls or tag."
+            exit 1
+          fi
           ls -la model
 
       - name: Check it is a sequence-classification checkpoint
