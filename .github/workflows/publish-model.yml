@@ -13,6 +13,11 @@ name: publish-model
 #
 #   gh workflow run publish-model.yml -f urls="$(cat urls.json)"
 #   gh workflow run publish-model.yml -f tag=finbert-ng-v1
+#
+# card_only: push docs/hf-model-card.md as the Hub repo's README.md and nothing
+# else. Every weights publish pushes the card too.
+#
+#   gh workflow run publish-model.yml -f card_only=true
 on:
   workflow_dispatch:
     inputs:
@@ -25,6 +30,10 @@ on:
       repo_id:
         description: "HF Hub model repo to push to"
         default: "batestguy/finbert-ng-financial"
+      card_only:
+        description: "Only push docs/hf-model-card.md as the model card"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -34,7 +43,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: docs/hf-model-card.md
+          sparse-checkout-cone-mode: false
+
       - name: Fetch the weights
+        if: ${{ !inputs.card_only }}
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
@@ -61,6 +76,7 @@ jobs:
           ls -la model
 
       - name: Check it is a sequence-classification checkpoint
+        if: ${{ !inputs.card_only }}
         # Refuse to publish anything the scorer could not load: a config with the
         # three FinBERT labels, and weights next to it.
         run: |
@@ -74,6 +90,7 @@ jobs:
           PY
 
       - name: Push to the Hub
+        if: ${{ !inputs.card_only }}
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           REPO_ID: ${{ inputs.repo_id }}
@@ -88,4 +105,21 @@ jobs:
           info = api.upload_folder(folder_path="model", repo_id=repo, repo_type="model",
                                    commit_message="Fine-tuned FinBERT (Kaggle run)")
           print("pushed:", info.commit_url)
+          PY
+
+      - name: Push the model card
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          REPO_ID: ${{ inputs.repo_id }}
+        run: |
+          pip install --quiet huggingface_hub
+          python - <<'PY'
+          import os
+          from huggingface_hub import HfApi
+          api = HfApi(token=os.environ["HF_TOKEN"])
+          info = api.upload_file(path_or_fileobj="docs/hf-model-card.md",
+                                 path_in_repo="README.md",
+                                 repo_id=os.environ["REPO_ID"], repo_type="model",
+                                 commit_message="Model card from docs/hf-model-card.md")
+          print("card:", info.commit_url)
           PY
