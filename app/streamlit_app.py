@@ -64,6 +64,7 @@ def render_login() -> None:
                 icon=":material/key_off:",
             )
         else:
+            render_demo_buttons()
             with st.form("login", border=False):
                 email = st.text_input("Email")
                 password = st.text_input("Password", type="password")
@@ -76,6 +77,45 @@ def render_login() -> None:
                 else:
                     st.error(message, icon=":material/error:")
 
+    views.render_disclaimer()
+
+
+def render_demo_buttons() -> None:
+    """One button per demo account in the ``DEMO_ACCOUNTS`` secret.
+
+    Only the role is shown. The demo email and password stay in the secret and
+    in ``auth``; nothing here renders either.
+    """
+    accounts = auth.demo_accounts()
+    if not accounts:
+        return
+    for role in auth.DEMO_ROLES:
+        if role not in accounts:
+            continue
+        if st.button(
+            f"Explore as {labels.role(role)}", key=f"demo-{role}",
+            icon=":material/visibility:", width="stretch",
+        ):
+            ok, message = auth.sign_in_demo(role)
+            if ok:
+                st.rerun()
+            st.error(message, icon=":material/error:")
+    st.caption(
+        "No sign-up needed. Demo accounts are read-only views of the same public data."
+    )
+    st.divider()
+
+
+def render_no_access() -> None:
+    """A signed-in user without a role: a message and a way out, never a view."""
+    user = auth.current_user()
+    st.image(str(views.LOGO), width=56)
+    st.title("No access yet", anchor=False)
+    st.markdown(user["problem"] or auth.NO_ROLE)
+    st.caption(f"Signed in as {user['email']}")
+    if st.button("Sign out", icon=":material/logout:"):
+        auth.sign_out()
+        st.rerun()
     views.render_disclaimer()
 
 
@@ -114,7 +154,15 @@ def main() -> None:
         return
 
     role = user["role"]
-    pages = [PAGES[key] for key in ROLE_PAGES.get(role, ROLE_PAGES["commercial_director"])]
+    if role not in ROLE_PAGES:
+        # No row, a null or unknown role, or a failed lookup: no view at all.
+        st.navigation(
+            [st.Page(render_no_access, title="No access", icon=":material/block:")],
+            position="hidden",
+        ).run()
+        return
+
+    pages = [PAGES[key] for key in ROLE_PAGES[role]]
     page = st.navigation(pages, position="sidebar" if len(pages) > 1 else "hidden")
 
     st.logo(str(views.LOGO), size="large")

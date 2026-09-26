@@ -11,7 +11,7 @@ project back up.
 | Service | Purpose | Free-tier limit that matters | URL |
 |---|---|---|---|
 | GitHub | Code, versioned data, **all compute** | Actions unmetered on public repos | https://github.com/batestguy/tobacco-price-intelligence |
-| Supabase | Dashboard **Auth only** (login + `users` role lookup) | 500 MB; **pauses after 7 days idle**, and nothing keeps it warm | https://supabase.com/dashboard |
+| Supabase | Dashboard **Auth only** (login + `users` role lookup) | 500 MB; **pauses after 7 days idle**, so `keepalive.yml` pings it weekly | https://supabase.com/dashboard |
 | Streamlit Community Cloud | Dashboard hosting | 1 GB RAM; sleeps after 12 h idle | https://share.streamlit.io |
 | Groq | GPT-OSS 120B memo generation (Llama 3.3 70B shut down 2026-08-16) | ~1000 req/day, 12k tokens/min | https://console.groq.com |
 | Hugging Face | Fine-tuned model weights | 100 GB Hub storage | https://huggingface.co/batestguy |
@@ -73,6 +73,8 @@ where it would land in shell history).
 | `HF_TOKEN` | score, train | huggingface.co → Settings → Access Tokens (write scope, for Phase 3 pushes) |
 | `ALERT_RECIPIENTS_COMMERCIAL` | recommend | Comma-separated addresses for Commercial Director alerts |
 | `ALERT_RECIPIENTS_SUPPLY` | recommend | Comma-separated addresses for Supply Chain Manager alerts |
+| `SUPABASE_URL` | keepalive | Supabase → Project Settings → API (the same value Streamlit has) |
+| `SUPABASE_ANON_KEY` | keepalive | Supabase → Project Settings → API → **anon** key. Never the service key |
 
 The two recipient lists are not credentials, but they are secrets on purpose: Actions prints
 a step's `env:` in the run log, which is public on this repo, and only secrets are masked.
@@ -96,7 +98,21 @@ does **not** inherit GitHub secrets.
 ```toml
 SUPABASE_URL = "https://<project>.supabase.co"
 SUPABASE_ANON_KEY = "<anon key, NOT the service key>"
+
+# Optional: "Explore as ..." buttons on the sign-in page. Only these two roles are
+# honoured; an admin entry is ignored. Each is an ordinary Supabase user, and its
+# role still comes from the `users` table -- grant it there (see schema.sql).
+[DEMO_ACCOUNTS.commercial_director]
+email = "<demo account email>"
+password = "<demo account password>"
+
+[DEMO_ACCOUNTS.supply_chain_manager]
+email = "<demo account email>"
+password = "<demo account password>"
 ```
+
+`DEMO_ACCOUNTS` lives **only** here, never in Actions. The app never renders the demo email
+or password; a demo session shows "Demo account" in their place.
 
 The app is publicly reachable, so it gets the **anon** key only. Note what the login is and
 is not: it routes users to their role's views (§6) and satisfies §11's "authorized personnel
@@ -111,10 +127,10 @@ The full runbook, with what breaks if you skip each step, is in
 
 1. `gh repo create ... --public --source=. --push`
 2. Create the Supabase project; run `supabase/schema.sql` in the SQL editor. Auth only — its
-   URL and anon key go to Streamlit in step 5, not to Actions.
-3. `gh secret set` the four secrets above.
+   URL and anon key go to Streamlit in step 5, and to Actions for `keepalive.yml`.
+3. `gh secret set` the eight secrets above.
 4. `gh workflow run scrape.yml` — confirm a Parquet file is committed by the Actions bot.
-5. Deploy `app/streamlit_app.py` on Streamlit Cloud; add its two secrets separately.
+5. Deploy `app/streamlit_app.py` on Streamlit Cloud; add its secrets separately (`DEMO_ACCOUNTS` is optional).
 6. Record the resulting dashboard URL in the table above.
 
 ## Workflows
@@ -125,5 +141,6 @@ The full runbook, with what breaks if you skip each step, is in
 | `score.yml` | after scrape (`workflow_run`) | — | FinBERT + VADER on CPU → scores + aggregates |
 | `train.yml` | `0 23 * * 6` | Sun 00:00 | Rebuild features, retrain XGBoost, commit model + metrics |
 | `recommend.yml` | `0 7 * * *` | 08:00 | Forecast → optimize → recommendations → alerts → memo |
+| `keepalive.yml` | `0 6 * * 1` | Mon 07:00 | One anon-key read of Supabase `users`, so the free project does not pause |
 
-All four also accept `workflow_dispatch`.
+All of them also accept `workflow_dispatch`.

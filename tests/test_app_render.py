@@ -199,3 +199,80 @@ def test_every_static_asset_the_app_references_exists():
     credits = (APP / "static" / "CREDITS.md").read_text(encoding="utf-8")
     for filename, _ in views.WATERMARKS.values():
         assert filename in credits, filename
+
+
+DEMO_SECRETS = {
+    "SUPABASE_URL": "https://example.invalid",
+    "SUPABASE_ANON_KEY": "anon-test",
+    "DEMO_ACCOUNTS": {
+        "commercial_director": {"email": "demo-cd@example.com", "password": "cd-secret-pw"},
+        "supply_chain_manager": {"email": "demo-scm@example.com", "password": "scm-secret-pw"},
+        "admin": {"email": "demo-admin@example.com", "password": "admin-secret-pw"},
+    },
+}
+
+
+def _all_text(at: AppTest) -> list[str]:
+    """Every string the page renders that a viewer could read."""
+    text = [el.value for kind in ("title", "header", "subheader", "markdown", "caption",
+                                  "error", "info", "success", "warning")
+            for el in at.get(kind)]
+    text += [b.label for b in at.button]
+    text += [t.label for t in at.text_input]
+    return [str(t) for t in text if t]
+
+
+def test_sign_in_page_offers_demo_buttons_without_revealing_credentials():
+    at = _app()
+    for key, value in DEMO_SECRETS.items():
+        at.secrets[key] = value
+    at.run()
+    assert not at.exception, [e.value for e in at.exception]
+
+    buttons = [b.label for b in at.button]
+    assert "Explore as Commercial Director" in buttons
+    assert "Explore as Supply Chain Manager" in buttons
+    assert not any("Administrator" in label for label in buttons)
+
+    rendered = " ".join(_all_text(at))
+    for account in DEMO_SECRETS["DEMO_ACCOUNTS"].values():
+        assert account["email"] not in rendered
+        assert account["password"] not in rendered
+    assert config.DISCLAIMER in [c.value for c in at.caption]
+
+
+def test_sign_in_page_without_demo_accounts_has_no_demo_buttons():
+    at = _app()
+    at.secrets["SUPABASE_URL"] = "https://example.invalid"
+    at.secrets["SUPABASE_ANON_KEY"] = "anon-test"
+    at.run()
+    assert not at.exception
+    assert not [b for b in at.button if b.label.startswith("Explore as")]
+
+
+@pytest.mark.parametrize("role", [None, "superuser"])
+def test_a_user_without_a_role_sees_no_view(role):
+    at = _app()
+    at.session_state["access_token"] = "test-token"
+    at.session_state["user_email"] = "pending@example.com"
+    at.session_state["role"] = role
+    at.run()
+    assert not at.exception, [e.value for e in at.exception]
+    assert [t.value for t in at.title] == ["No access yet"]
+    assert any("no access yet" in m.value for m in at.markdown)
+    assert "Sign out" in [b.label for b in at.button]
+    assert not at.metric and not at.get("plotly_chart") and not at.dataframe
+    assert config.DISCLAIMER in [c.value for c in at.caption]
+
+
+def test_a_demo_session_never_shows_its_email():
+    at = _app()
+    at.session_state["access_token"] = "test-token"
+    at.session_state["user_email"] = "demo-cd@example.com"
+    at.session_state["role"] = "commercial_director"
+    at.session_state["demo"] = True
+    at.run()
+    assert not at.exception, [e.value for e in at.exception]
+    rendered = " ".join(_all_text(at))  # the tree includes the sidebar
+    assert "demo-cd@example.com" not in rendered
+    assert "Demo account" in rendered

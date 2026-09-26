@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import auth
 import data
 import labels
 import pandas as pd
@@ -492,8 +493,111 @@ def admin() -> None:
         width="stretch",
     )
 
+    render_users()
+
+
+#: The editor's stand-in for a null role. The grid shows a null cell as blank,
+#: so pending users get a real option that reads "No access" instead.
+PENDING = "pending"
+
+
+def render_users() -> None:
+    """Role management for administrators, through RLS with their own token.
+
+    No network without a signed-in session and configured secrets, which is the
+    state ``tests/test_app_render.py`` renders the view in.
+    """
     st.subheader("Users", anchor=False)
-    st.caption(
-        "Users are managed in the Supabase dashboard under Authentication, and "
-        "their roles in the users table."
+    user = auth.current_user()
+    if user is None or not auth.configured():
+        st.caption(
+            "Sign in as an administrator to assign roles here. New sign-ups arrive "
+            "with no access until a role is assigned."
+        )
+        return
+
+    ok, rows = auth.list_users()
+    if not ok:
+        st.error(rows, icon=":material/error:")
+        return
+
+    frame = pd.DataFrame(rows, columns=["id", "email", "role", "created_at"])
+    frame["role"] = [r if r in auth.ROLES else PENDING for r in frame["role"]]
+    frame["created_at"] = pd.to_datetime(
+        frame["created_at"], utc=True, errors="coerce"
+    ).dt.tz_localize(None)
+    # Pending first, each group oldest first, so a new sign-up is at the top.
+    frame = (
+        frame.assign(pending=frame["role"] == PENDING)
+        .sort_values(["pending", "created_at"], ascending=[False, True], kind="stable")
+        .drop(columns="pending")
+        .set_index("id")
     )
+    pending = int((frame["role"] == PENDING).sum())
+
+    options = [*auth.ROLES, PENDING]
+    version = st.session_state.get("users_editor_version", 0)
+    edited = st.data_editor(
+        frame,
+        column_config={
+            "email": st.column_config.TextColumn("Email", disabled=True),
+            "role": st.column_config.SelectboxColumn(
+                "Role", options=options, required=True,
+                format_func=lambda code: labels.role(None if code == PENDING else code),
+            ),
+            "created_at": st.column_config.DateColumn(
+                "Joined", format="D MMM YYYY", disabled=True
+            ),
+        },
+        hide_index=True,
+        num_rows="fixed",
+        width="stretch",
+        key=f"users-editor-{version}",
+    )
+    waiting = f"{pending} awaiting a role, listed first. " if pending else ""
+    st.caption(
+        waiting
+        + "New sign-ups arrive with no access. Setting a role to No access revokes "
+        "it; the sign-in account stays in Supabase and can be granted a role again. "
+        "You cannot change your own role."
+    )
+
+    if st.button("Save changes", type="primary", icon=":material/save:"):
+        changed = [
+            (user_id, role)
+            for user_id, role in edited["role"].items()
+            if role != frame.at[user_id, "role"]
+        ]
+        if not changed:
+            st.info("No changes to save.", icon=":material/info:")
+            return
+        saved, failed = 0, []
+        for user_id, role in changed:
+            email = frame.at[user_id, "email"]
+            email = email if isinstance(email, str) and email else "A user"
+            if user_id == user["id"]:
+                failed.append(f"{email}: you cannot change your own role.")
+                continue
+            ok, message = auth.set_role(user_id, None if role == PENDING else role)
+            if ok:
+                saved += 1
+            else:
+                failed.append(f"{email}: {message}")
+        # A new editor key discards the edits, so the table reloads from Supabase.
+        st.session_state["users_editor_version"] = version + 1
+        if failed:
+            st.session_state["users_notice"] = ("error", saved, failed)
+        else:
+            st.session_state["users_notice"] = ("success", saved, [])
+        st.rerun()
+
+    notice = st.session_state.pop("users_notice", None)
+    if notice:
+        kind, saved, failed = notice
+        summary = f"Saved {saved} role change{'' if saved == 1 else 's'}."
+        if kind == "success":
+            st.success(summary, icon=":material/check_circle:")
+        else:
+            st.error(
+                f"{summary} Not saved: " + " ".join(failed), icon=":material/error:"
+            )
