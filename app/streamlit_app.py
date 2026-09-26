@@ -32,10 +32,17 @@ st.set_page_config(
 
 
 def render_login() -> None:
-    plate, panel = st.columns([5, 4], gap="large", vertical_alignment="center")
+    plate, panel = st.columns([1, 1], gap="large", vertical_alignment="center")
 
-    with plate:
-        st.image(str(views.PLATE), width="stretch")
+    # On a phone the columns stack and the plate would fill the first screen,
+    # so it is hidden there, like the view watermarks.
+    st.html(
+        "<style>@media (max-width: 640px) { .st-key-signin-plate { display: none; } }</style>"
+    )
+    with plate, st.container(key="signin-plate"):
+        # Fixed width so the portrait plate (~565px tall) keeps the form above
+        # the fold on a laptop screen.
+        st.image(str(views.PLATE), width=400)
         st.caption(
             "*Nicotiana tabacum*, from Köhler's *Medizinal-Pflanzen*, 1887. Public domain."
         )
