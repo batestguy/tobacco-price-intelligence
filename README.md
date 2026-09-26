@@ -11,6 +11,12 @@ infrastructure — with **zero local compute**.
 > [`src/tobacco/sources/sales_mock.py`](src/tobacco/sources/sales_mock.py)). No real
 > company data is used or stored. See [Scope and ethics](#scope-and-ethics).
 
+**Live dashboard: [tobacco-price-intelligence.streamlit.app](https://tobacco-price-intelligence.streamlit.app)**.
+Choose *Explore as Commercial Director* or *Explore as Supply Chain Manager* on the sign-in
+page: no account needed. The demo shows the same public data the team views see.
+
+<!-- screenshots -->
+
 ## What it does
 
 Public macroeconomic and market signals are collected twice daily, scored with financial
@@ -26,6 +32,27 @@ business constraints.
 | Optimize | SciPy `linprog` — price selection + inventory rebalancing | GitHub Actions, daily |
 | Notify | Gmail SMTP alerts on four trigger rules | GitHub Actions, daily |
 | Present | Streamlit dashboard with Supabase Auth role-based views | Streamlit Community Cloud |
+
+## Results
+
+Numbers from the committed artifacts, with the baseline each should be read against.
+
+| | Result | Read it against | Source |
+|---|---|---|---|
+| Demand forecast (XGBoost), 4 held-out weeks | **10.9%** mean absolute percentage error | 13.8% for repeating last week's sales | [`models/metrics.json`](models/metrics.json) |
+| Headline sentiment (fine-tuned FinBERT), 69 held-out headlines | **76.8%** accuracy | 71.0% for always answering "neutral"; 46.4% for the base model | [`models/finbert_metrics.json`](models/finbert_metrics.json) |
+
+Two caveats matter more than the numbers:
+
+- **Sales are synthetic**, so the forecast is only as meaningful as the generator in
+  [`sales_mock.py`](src/tobacco/sources/sales_mock.py). Product and region dominate the
+  feature importances by construction, and economic inputs such as inflation cannot rank
+  until there is real sales history.
+- **The sentiment labels were made by two models and kept where they agreed** (89.8%
+  agreement, Cohen's kappa 0.787), not by human experts. The fine-tune beats a
+  never-commit baseline by four headlines out of 69. The model and an honest card are on
+  [Hugging Face](https://huggingface.co/batestguy/finbert-ng-financial); the labels and
+  guide are in [`data/labels/`](data/labels/) and [`docs/labelling-guide.md`](docs/labelling-guide.md).
 
 ## Architecture
 
@@ -58,7 +85,7 @@ signed-in user's role.
 ## Repository layout
 
 ```
-.github/workflows/    scrape.yml · score.yml · train.yml · recommend.yml
+.github/workflows/    scrape · score · train · recommend · publish-model · keepalive · test
 src/tobacco/
   config.py           env-var loading; fails loudly if a secret is missing
   sources/            cbn.py · nbs.py · competitors.py · news.py · sales_mock.py
@@ -76,7 +103,9 @@ supabase/schema.sql   the `users` role table behind dashboard Auth
 notebooks/            Kaggle transfer-learning notebook
 data/labels/          agreed headline labels for the fine-tune (+ README with stats)
 docs/                 labelling-guide.md: the labelling rules and process
-app/streamlit_app.py  dashboard
+app/                  dashboard: streamlit_app.py (sign-in, routing) · views.py
+                      · labels.py (display vocabulary) · auth.py · static/ (mark,
+                      engravings, fonts; see static/CREDITS.md)
 REGISTRY.md           index of every external resource, URL and secret
 ```
 
@@ -101,9 +130,9 @@ reference index of every external service, endpoint and secret name.
   is still used, for fine-tuned weights.
 - **Git LFS is deliberately not used.** Its 1 GB/month bandwidth quota is consumed by every
   Actions checkout. Artifacts too large for git go to HF Hub or GitHub Releases.
-- **Supabase free pauses after 7 days idle.** Nothing in the pipeline touches it any more, so
-  a project left alone for a week stops accepting logins until it is resumed by hand. No data
-  is at stake — only the `users` role table lives there.
+- **Supabase free pauses after 7 days idle.** `keepalive.yml` makes one anonymous read a
+  week so it never does. Even paused, it costs only team sign-in: the demo never calls
+  Supabase, and no data lives there, only the `users` role table.
 - **Streamlit Community Cloud** = 1 GB RAM, sleeps after 12 idle hours, unlimited public apps.
 - **Kaggle** = 30 h/week of T4 GPU with background execution — the transfer-learning surface.
 
@@ -129,6 +158,13 @@ Two constraints follow from the repo being public and are enforced in code:
 The original build specification is preserved verbatim in [`INTRO.txt`](INTRO.txt); where
 the current implementation departs from it, the reasons are recorded in
 [`CLAUDE.md`](CLAUDE.md).
+
+## Credits
+
+The dashboard's imagery is public domain: Köhler's 1887 *Nicotiana tabacum* plate, a 1909
+USDA curing-barn photograph, and an 1872 US patent drawing of a tobacco press. Fonts are
+Public Sans and Bricolage Grotesque (SIL Open Font License). Sources and licences:
+[`app/static/CREDITS.md`](app/static/CREDITS.md). The leaf mark is original to this project.
 
 ## Licence
 
