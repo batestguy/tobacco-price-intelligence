@@ -1,0 +1,11 @@
+{
+  "model": "batestguy/finbert-ng-financial",
+  "base_model": "ProsusAI/finbert",
+  "trained_on": "Kaggle T4, kernel batesthommie/finbert-ng-financial v1, 2026-09-26",
+  "labels": "data/labels/headlines_labelled.csv (344 model-made, agreement-only labels; see data/labels/README.md)",
+  "split": "80/20 stratified, random_state=42",
+  "base_accuracy": 0.463768115942029,
+  "tuned_accuracy": 0.7681159420289855,
+  "n_train": 275,
+  "n_eval": 69
+}
