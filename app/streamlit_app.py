@@ -55,6 +55,7 @@ def render_login() -> None:
             "from exchange rates, inflation and the news."
         )
 
+        render_demo_buttons()
         if not auth.configured():
             st.error(
                 "Sign-in is not configured. Set `SUPABASE_URL` and `SUPABASE_ANON_KEY` "
@@ -76,6 +77,35 @@ def render_login() -> None:
                 else:
                     st.error(message, icon=":material/error:")
 
+    views.render_disclaimer()
+
+
+def render_demo_buttons() -> None:
+    """Open a non-admin view without an account (see ``auth.start_demo``)."""
+    for role in auth.DEMO_ROLES:
+        if st.button(
+            f"Explore as {labels.role(role)}", key=f"demo-{role}",
+            icon=":material/visibility:", width="stretch",
+        ):
+            auth.start_demo(role)
+            st.rerun()
+    st.caption(
+        "No sign-up needed. The demo opens a read-only view of the same public data "
+        "the team sees. Team members sign in below."
+    )
+    st.divider()
+
+
+def render_no_access() -> None:
+    """A signed-in user without a role: a message and a way out, never a view."""
+    user = auth.current_user()
+    st.image(str(views.LOGO), width=56)
+    st.title("No access yet", anchor=False)
+    st.markdown(user["problem"] or auth.NO_ROLE)
+    st.caption(f"Signed in as {user['email']}")
+    if st.button("Sign out", icon=":material/logout:"):
+        auth.sign_out()
+        st.rerun()
     views.render_disclaimer()
 
 
@@ -114,14 +144,23 @@ def main() -> None:
         return
 
     role = user["role"]
-    pages = [PAGES[key] for key in ROLE_PAGES.get(role, ROLE_PAGES["commercial_director"])]
+    if role not in ROLE_PAGES:
+        # No row, a null or unknown role, or a failed lookup: no view at all.
+        st.navigation(
+            [st.Page(render_no_access, title="No access", icon=":material/block:")],
+            position="hidden",
+        ).run()
+        return
+
+    pages = [PAGES[key] for key in ROLE_PAGES[role]]
     page = st.navigation(pages, position="sidebar" if len(pages) > 1 else "hidden")
 
     st.logo(str(views.LOGO), size="large")
     with st.sidebar:
         st.markdown(f"**{labels.role(role)}**")
         st.caption(user["email"])
-        if st.button("Sign out", icon=":material/logout:"):
+        leave = "Leave demo" if user.get("demo") else "Sign out"
+        if st.button(leave, icon=":material/logout:"):
             auth.sign_out()
             st.rerun()
 

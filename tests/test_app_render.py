@@ -199,3 +199,116 @@ def test_every_static_asset_the_app_references_exists():
     credits = (APP / "static" / "CREDITS.md").read_text(encoding="utf-8")
     for filename, _ in views.WATERMARKS.values():
         assert filename in credits, filename
+
+
+def _all_text(at: AppTest) -> list[str]:
+    """Every string the page renders that a viewer could read."""
+    text = [el.value for kind in ("title", "header", "subheader", "markdown", "caption",
+                                  "error", "info", "success", "warning")
+            for el in at.get(kind)]
+    text += [b.label for b in at.button]
+    text += [t.label for t in at.text_input]
+    return [str(t) for t in text if t]
+
+
+@pytest.mark.parametrize("configured", [True, False])
+def test_sign_in_page_always_offers_the_two_demo_views(configured):
+    """Demo sessions need no Supabase, so they show even when sign-in is down."""
+    at = _app()
+    if configured:
+        at.secrets["SUPABASE_URL"] = "https://example.invalid"
+        at.secrets["SUPABASE_ANON_KEY"] = "anon-test"
+    at.run()
+    assert not at.exception, [e.value for e in at.exception]
+    buttons = [b.label for b in at.button]
+    assert "Explore as Commercial Director" in buttons
+    assert "Explore as Supply Chain Manager" in buttons
+    assert not any("Administrator" in label for label in buttons)
+    assert config.DISCLAIMER in [c.value for c in at.caption]
+
+
+@pytest.mark.parametrize(
+    "role, headline",
+    [("commercial_director", "Raise prices this week"),
+     ("supply_chain_manager", "1 of 12 at risk of running out")],
+)
+def test_a_demo_button_opens_its_view_offline(role, headline):
+    """Click through, with the network blocked by conftest: no Supabase call."""
+    at = _app()
+    at.run()
+    at.button(key=f"demo-{role}").click().run()
+    assert not at.exception, [e.value for e in at.exception]
+    assert at.title[0].value == headline
+    rendered = " ".join(_all_text(at))
+    assert "Demo session" in rendered
+    assert "Leave demo" in [b.label for b in at.button]
+    _assert_readable(at)
+
+
+@pytest.mark.parametrize("role", [None, "superuser"])
+def test_a_user_without_a_role_sees_no_view(role):
+    at = _app()
+    at.session_state["access_token"] = "test-token"
+    at.session_state["user_email"] = "pending@example.com"
+    at.session_state["role"] = role
+    at.run()
+    assert not at.exception, [e.value for e in at.exception]
+    assert [t.value for t in at.title] == ["No access yet"]
+    assert any("no access yet" in m.value for m in at.markdown)
+    assert "Sign out" in [b.label for b in at.button]
+    assert not at.metric and not at.get("plotly_chart") and not at.dataframe
+    assert config.DISCLAIMER in [c.value for c in at.caption]
+
+
+def test_admin_user_table_renders_in_words(monkeypatch):
+    """The Users editor, with Supabase stubbed: pending first, labels in words."""
+    import requests
+
+    rows = [
+        {"id": "admin-id", "email": "admin@example.com", "role": "admin",
+         "created_at": "2026-09-01T09:00:00+00:00"},
+        {"id": "new-id", "email": "new@example.com", "role": None,
+         "created_at": "2026-09-20T09:00:00+00:00"},
+    ]
+
+    class Response:
+        ok, status_code = True, 200
+
+        def json(self):
+            return rows
+
+    requested = []
+
+    def fake_get(url, **kwargs):
+        requested.append((url, kwargs.get("params")))
+        return Response()
+
+    monkeypatch.setattr(requests, "get", fake_get)
+
+    at = AppTest.from_string(
+        VIEW_SCRIPT.format(app=str(APP), src=str(SRC), view="admin"), default_timeout=TIMEOUT
+    )
+    at.secrets["SUPABASE_URL"] = "https://example.invalid"
+    at.secrets["SUPABASE_ANON_KEY"] = "anon-test"
+    at.session_state["access_token"] = "test-token"
+    at.session_state["user_id"] = "admin-id"
+    at.session_state["user_email"] = "admin@example.com"
+    at.session_state["role"] = "admin"
+    at.run()
+    _assert_readable(at)
+
+    assert [params for _, params in requested] == [
+        {"select": "id,email,role,created_at", "order": "created_at.asc"}
+    ]
+    assert "Save changes" in [b.label for b in at.button]
+    assert any("1 awaiting a role" in c.value for c in at.caption)
+
+    (editor,) = [f for f in at.dataframe if "role" in json.loads(f.proto.columns or "{}")]
+    columns = json.loads(editor.proto.columns)
+    assert {c.get("label") for c in columns.values() if c.get("label")} >= {
+        "Email", "Role", "Joined"
+    }
+    role_options = [o["label"] for o in columns["role"]["type_config"]["options"]]
+    assert "No access" in role_options and "Administrator" in role_options
+    frame = editor.value
+    assert list(frame["email"]) == ["new@example.com", "admin@example.com"]  # pending first

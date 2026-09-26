@@ -95,6 +95,11 @@ def test_no_label_leaks_an_identifier(table):
         assert "_" not in label, label
 
 
+def test_no_role_has_a_label_in_words():
+    assert labels.role(None) == labels.NO_ROLE_LABEL == "No access"
+    assert "_" not in labels.NO_ROLE_LABEL
+
+
 def test_humanize_is_only_a_fallback():
     assert labels.humanize("some_new_code") == "Some new code"
     assert labels.feature("sku_PREMIUM_20") == "Product: Premium"

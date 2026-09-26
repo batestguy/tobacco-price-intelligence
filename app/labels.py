@@ -23,6 +23,9 @@ ROLE_LABELS = {
     "admin": "Administrator",
 }
 
+#: A signed-in user whose ``users.role`` is null: pending, no view.
+NO_ROLE_LABEL = "No access"
+
 #: ``config.SKUS``. The short form is for chart legends and feature names.
 SKU_LABELS = {
     "PREMIUM_20": "Premium (pack of 20)",
@@ -160,8 +163,8 @@ def feature(name: str) -> str:
     return _lookup(FEATURE_LABELS, name)
 
 
-def role(code: str) -> str:
-    return _lookup(ROLE_LABELS, code)
+def role(code: str | None) -> str:
+    return NO_ROLE_LABEL if code is None else _lookup(ROLE_LABELS, code)
 
 
 # --------------------------------------------------------------------------

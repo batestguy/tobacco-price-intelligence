@@ -1,0 +1,43 @@
+name: keepalive
+
+# Keeps the free Supabase project from pausing.
+#
+# Supabase is Auth only (CLAUDE.md, departure 5): the pipeline never touches it,
+# so a week without a dashboard sign-in leaves the project idle, and a free
+# project pauses after 7 idle days -- after which every login fails until it is
+# resumed by hand. One weekly database request is enough to count as activity.
+#
+# It sends the ANON key, never the service key. Row level security returns `[]`
+# to an anonymous caller, which is fine: the point is that the request reached
+# the database, not what came back. Nothing is written and nothing is committed.
+on:
+  schedule:
+    - cron: '0 6 * * 1'   # Mondays 06:00 UTC (07:00 WAT)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Query Supabase
+        # Secrets reach the step through env only, and are never echoed: this
+        # repo's run logs are public. Only the HTTP status is printed.
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::error::Set the SUPABASE_URL and SUPABASE_ANON_KEY Actions secrets (anon key, not the service key)."
+            exit 1
+          fi
+          status=$(curl --fail --silent --show-error --output /dev/null \
+            --write-out '%{http_code}' --max-time 60 \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+            "${SUPABASE_URL%/}/rest/v1/users?select=id&limit=1")
+          echo "Supabase answered HTTP $status."
