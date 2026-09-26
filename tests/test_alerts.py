@@ -225,3 +225,32 @@ def test_dispatch_deduplicates_a_recipient_holding_both_roles(monkeypatch):
 
     email.dispatch([email.check_fx(fx_frame(1500.0, 1545.0))])
     assert seen == [["both@example.com", "c@example.com"]]
+
+
+# ---------------------------------------------------------------------------
+# delivery check (recommend.yml, test_alert: true)
+# ---------------------------------------------------------------------------
+
+
+def test_test_alert_is_labelled_and_reaches_both_roles(monkeypatch):
+    monkeypatch.setenv("ALERT_RECIPIENTS_COMMERCIAL", "cd@example.com")
+    monkeypatch.setenv("ALERT_RECIPIENTS_SUPPLY", "scm@example.com, cd@example.com")
+    sent = []
+    monkeypatch.setattr(email, "_send", lambda subject, body, to: sent.append((subject, to)) or True)
+
+    assert email.main(["--test"]) == 0
+    assert len(sent) == 1
+    subject, to = sent[0]
+    assert subject.startswith("[TEST]")
+    # Both lists, de-duplicated.
+    assert to == ["cd@example.com", "scm@example.com"]
+
+
+def test_test_alert_fails_the_run_when_nothing_is_sent(monkeypatch):
+    monkeypatch.setattr(email, "_send", lambda *a: False)
+    assert email.main(["--test"]) == 1
+
+
+def test_test_alert_requires_the_flag():
+    with pytest.raises(SystemExit):
+        email.main([])

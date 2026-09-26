@@ -5,6 +5,11 @@ on:
   schedule:
     - cron: "0 7 * * *"
   workflow_dispatch:
+    inputs:
+      test_alert:
+        description: "Only send one labelled test email to both alert lists, then stop"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -32,7 +37,20 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-actions.txt
 
+      # Delivery check: proves the Gmail secrets and both recipient lists work,
+      # through the same send path as the real alerts. Writes and commits nothing.
+      - name: Send a test alert
+        if: ${{ inputs.test_alert }}
+        env:
+          PYTHONPATH: src
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          ALERT_RECIPIENTS_COMMERCIAL: ${{ secrets.ALERT_RECIPIENTS_COMMERCIAL }}
+          ALERT_RECIPIENTS_SUPPLY: ${{ secrets.ALERT_RECIPIENTS_SUPPLY }}
+        run: python -m tobacco.alerts.email --test
+
       - name: Forecast, optimize, alert, write memo
+        if: ${{ !inputs.test_alert }}
         env:
           PYTHONPATH: src
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
@@ -43,6 +61,7 @@ jobs:
         run: python -m tobacco.jobs.recommend
 
       - name: Commit recommendations and memo
+        if: ${{ !inputs.test_alert }}
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
