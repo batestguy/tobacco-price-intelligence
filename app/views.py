@@ -9,6 +9,8 @@ raw column name or code. The test suite checks that.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import data
 import labels
 import pandas as pd
@@ -21,6 +23,18 @@ from tobacco.memo import groq
 #: Rows of history behind the sparklines in the metric row.
 SPARK_DAYS = 30
 
+STATIC = Path(__file__).resolve().parent / "static"
+LOGO = STATIC / "logo-leaf.svg"
+PLATE = STATIC / "watermarks" / "kohler-nicotiana-tabacum-1887.jpg"
+
+#: One public-domain image per view, with its aspect ratio (width / height).
+#: Credits: app/static/CREDITS.md.
+WATERMARKS = {
+    "executive": ("kohler-nicotiana-tabacum-1887.jpg", 4160 / 5893),
+    "supply_chain": ("garner-curing-barn-1909.jpg", 1760 / 1358),
+    "admin": ("gates-tobacco-press-patent-1872.jpg", 3581 / 5151),
+}
+
 
 # ---------------------------------------------------------------------------
 # shared widgets
@@ -32,6 +46,38 @@ def render_disclaimer() -> None:
     st.space("large")
     st.caption(config.PORTFOLIO_NOTICE)
     st.caption(config.DISCLAIMER)
+
+
+def render_watermark(view: str) -> None:
+    """The view's engraving, faint and fixed at the lower right, behind the content.
+
+    The only custom CSS in the app. ``isolation`` gives the main container its
+    own stacking context so ``z-index: -1`` puts the image under every element
+    rather than over any of them; the radial mask fades the scan's paper edge.
+    Hidden on narrow screens, where there is no empty corner to put it in.
+    """
+    filename, ratio = WATERMARKS[view]
+    dark = st.context.theme.type == "dark"
+    tone = (
+        "filter: grayscale(1) invert(1); mix-blend-mode: screen; opacity: 0.09;"
+        if dark
+        else "filter: grayscale(1) sepia(0.5); mix-blend-mode: multiply; opacity: 0.07;"
+    )
+    mask = "radial-gradient(ellipse at center, #000 50%, transparent 75%)"
+    st.html(
+        f"""<style>
+[data-testid="stMain"] {{ isolation: isolate; }}
+[data-testid="stMain"]::before {{
+  content: ""; position: fixed; right: 2vw; bottom: 2vh; z-index: -1;
+  width: min(36vw, 520px); aspect-ratio: {ratio:.4f};
+  background: url("app/static/watermarks/{filename}") center / contain no-repeat;
+  {tone}
+  -webkit-mask-image: {mask}; mask-image: {mask};
+  pointer-events: none;
+}}
+@media (max-width: 640px) {{ [data-testid="stMain"]::before {{ display: none; }} }}
+</style>"""
+    )
 
 
 def render_hero(eyebrow: str, headline: str, detail: str) -> None:
@@ -232,6 +278,7 @@ def _as_of(recommendations: pd.DataFrame) -> str:
 
 
 def executive() -> None:
+    render_watermark("executive")
     recommendations = data.latest_recommendations()
     moves = {}
     if not recommendations.empty:
@@ -267,6 +314,7 @@ def executive() -> None:
 
 
 def supply_chain() -> None:
+    render_watermark("supply_chain")
     recommendations = data.latest_recommendations()
     statuses = {}
     if not recommendations.empty:
@@ -362,6 +410,7 @@ def supply_chain() -> None:
 
 
 def admin() -> None:
+    render_watermark("admin")
     metrics = data.model_metrics()
     if metrics:
         gain = metrics["naive_baseline_mape_pct"] - metrics["mape_pct"]

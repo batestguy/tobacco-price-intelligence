@@ -26,37 +26,48 @@ import views  # noqa: E402
 
 st.set_page_config(
     page_title="Price intelligence",
-    page_icon=":material/eco:",
+    page_icon=str(views.LOGO),
     layout="wide",
 )
 
 
 def render_login() -> None:
-    st.title("Price intelligence", anchor=False)
-    st.markdown("Pricing and supply-chain decision support for the Nigerian market.")
+    plate, panel = st.columns([5, 4], gap="large", vertical_alignment="center")
 
-    if not auth.configured():
-        st.error(
-            "Sign-in is not configured. Set `SUPABASE_URL` and `SUPABASE_ANON_KEY` "
-            "in the app's secrets on Streamlit Cloud. They are set separately from "
-            "the GitHub Actions secrets, and the app takes the anon key, never the "
-            "service key.",
-            icon=":material/key_off:",
+    with plate:
+        st.image(str(views.PLATE), width="stretch")
+        st.caption(
+            "*Nicotiana tabacum*, from Köhler's *Medizinal-Pflanzen*, 1887. Public domain."
         )
-        views.render_disclaimer()
-        return
 
-    with st.form("login"):
-        email = st.text_input("Email")
-        password = st.text_input("Password", type="password")
-        submitted = st.form_submit_button("Sign in", type="primary")
+    with panel:
+        st.image(str(views.LOGO), width=56)
+        st.title("Price intelligence", anchor=False)
+        st.markdown(
+            "Pricing and supply-chain decision support for the Nigerian market, "
+            "from exchange rates, inflation and the news."
+        )
 
-    if submitted:
-        ok, message = auth.sign_in(email, password)
-        if ok:
-            st.rerun()
+        if not auth.configured():
+            st.error(
+                "Sign-in is not configured. Set `SUPABASE_URL` and `SUPABASE_ANON_KEY` "
+                "in the app's secrets on Streamlit Cloud. They are set separately from "
+                "the GitHub Actions secrets, and the app takes the anon key, never the "
+                "service key.",
+                icon=":material/key_off:",
+            )
         else:
-            st.error(message, icon=":material/error:")
+            with st.form("login", border=False):
+                email = st.text_input("Email")
+                password = st.text_input("Password", type="password")
+                submitted = st.form_submit_button("Sign in", type="primary", width="stretch")
+
+            if submitted:
+                ok, message = auth.sign_in(email, password)
+                if ok:
+                    st.rerun()
+                else:
+                    st.error(message, icon=":material/error:")
 
     views.render_disclaimer()
 
@@ -99,6 +110,7 @@ def main() -> None:
     pages = [PAGES[key] for key in ROLE_PAGES.get(role, ROLE_PAGES["commercial_director"])]
     page = st.navigation(pages, position="sidebar" if len(pages) > 1 else "hidden")
 
+    st.logo(str(views.LOGO), size="large")
     with st.sidebar:
         st.markdown(f"**{labels.role(role)}**")
         st.caption(user["email"])
