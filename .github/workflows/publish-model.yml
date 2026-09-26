@@ -1,0 +1,69 @@
+name: publish-model
+
+# Pushes fine-tuned FinBERT weights from a GitHub Release asset to the HF Hub.
+#
+# A Kaggle run submitted with the CLI cannot attach the HF_TOKEN secret, so the
+# notebook saves the weights as its output instead of pushing them. Those weights
+# are attached to a release (git is no place for ~420 MB, and LFS is ruled out),
+# and this job does the push with the repo's own HF_TOKEN secret.
+#
+#   gh release create finbert-ng-v1 finbert-ng-financial.tar.gz ...
+#   gh workflow run publish-model.yml -f tag=finbert-ng-v1
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag holding finbert-ng-financial.tar.gz"
+        required: true
+      repo_id:
+        description: "HF Hub model repo to push to"
+        default: "batestguy/finbert-ng-financial"
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Download the release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "${{ inputs.tag }}" \
+            --repo "${{ github.repository }}" \
+            --pattern finbert-ng-financial.tar.gz
+          mkdir model
+          tar -xzf finbert-ng-financial.tar.gz -C model --strip-components=1
+          ls -la model
+
+      - name: Check it is a sequence-classification checkpoint
+        # Refuse to publish anything the scorer could not load: a config with the
+        # three FinBERT labels, and weights next to it.
+        run: |
+          python - <<'PY'
+          import json, pathlib
+          cfg = json.loads(pathlib.Path("model/config.json").read_text())
+          labels = {v.lower() for v in cfg["id2label"].values()}
+          assert labels == {"positive", "negative", "neutral"}, labels
+          assert any(pathlib.Path("model").glob("*.safetensors")), "no weights"
+          print("ok:", cfg["id2label"])
+          PY
+
+      - name: Push to the Hub
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          REPO_ID: ${{ inputs.repo_id }}
+        run: |
+          pip install --quiet huggingface_hub
+          python - <<'PY'
+          import os
+          from huggingface_hub import HfApi
+          api = HfApi(token=os.environ["HF_TOKEN"])
+          repo = os.environ["REPO_ID"]
+          api.create_repo(repo, repo_type="model", exist_ok=True)
+          info = api.upload_folder(folder_path="model", repo_id=repo, repo_type="model",
+                                   commit_message="Fine-tuned FinBERT (Kaggle run)")
+          print("pushed:", info.commit_url)
+          PY
