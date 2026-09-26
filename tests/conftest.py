@@ -31,6 +31,7 @@ ENV_VARS = (
     "FINBERT_MODEL",
     "NBS_INFLATION_URL",
     "HF_TOKEN",
+    "RESCORE",
 )
 
 
