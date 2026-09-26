@@ -276,3 +276,57 @@ def test_a_demo_session_never_shows_its_email():
     rendered = " ".join(_all_text(at))  # the tree includes the sidebar
     assert "demo-cd@example.com" not in rendered
     assert "Demo account" in rendered
+
+
+def test_admin_user_table_renders_in_words(monkeypatch):
+    """The Users editor, with Supabase stubbed: pending first, labels in words."""
+    import requests
+
+    rows = [
+        {"id": "admin-id", "email": "admin@example.com", "role": "admin",
+         "created_at": "2026-09-01T09:00:00+00:00"},
+        {"id": "new-id", "email": "new@example.com", "role": None,
+         "created_at": "2026-09-20T09:00:00+00:00"},
+    ]
+
+    class Response:
+        ok, status_code = True, 200
+
+        def json(self):
+            return rows
+
+    requested = []
+
+    def fake_get(url, **kwargs):
+        requested.append((url, kwargs.get("params")))
+        return Response()
+
+    monkeypatch.setattr(requests, "get", fake_get)
+
+    at = AppTest.from_string(
+        VIEW_SCRIPT.format(app=str(APP), src=str(SRC), view="admin"), default_timeout=TIMEOUT
+    )
+    at.secrets["SUPABASE_URL"] = "https://example.invalid"
+    at.secrets["SUPABASE_ANON_KEY"] = "anon-test"
+    at.session_state["access_token"] = "test-token"
+    at.session_state["user_id"] = "admin-id"
+    at.session_state["user_email"] = "admin@example.com"
+    at.session_state["role"] = "admin"
+    at.run()
+    _assert_readable(at)
+
+    assert [params for _, params in requested] == [
+        {"select": "id,email,role,created_at", "order": "created_at.asc"}
+    ]
+    assert "Save changes" in [b.label for b in at.button]
+    assert any("1 awaiting a role" in c.value for c in at.caption)
+
+    (editor,) = [f for f in at.dataframe if "role" in json.loads(f.proto.columns or "{}")]
+    columns = json.loads(editor.proto.columns)
+    assert {c.get("label") for c in columns.values() if c.get("label")} >= {
+        "Email", "Role", "Joined"
+    }
+    role_options = [o["label"] for o in columns["role"]["type_config"]["options"]]
+    assert "No access" in role_options and "Administrator" in role_options
+    frame = editor.value
+    assert list(frame["email"]) == ["new@example.com", "admin@example.com"]  # pending first
