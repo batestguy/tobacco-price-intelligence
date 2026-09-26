@@ -202,3 +202,49 @@ def dispatch(alerts: list[Alert | None]) -> int:
             sent += 1
     log.info("Alerts: %d triggered, %d sent", sum(a is not None for a in alerts), sent)
     return sent
+
+
+# ---------------------------------------------------------------------------
+# delivery check
+# ---------------------------------------------------------------------------
+
+
+def test_alert() -> Alert:
+    """A clearly labelled message to both roles, to prove delivery end to end.
+
+    Sent only on demand (``recommend.yml`` with ``test_alert: true``), through
+    the same ``dispatch`` and ``_send`` path as the four real rules, so a pass
+    means the Gmail secrets, the SMTP login and both recipient lists all work.
+    """
+    return Alert(
+        rule="delivery_test",
+        subject="[TEST] Price intelligence alert delivery check",
+        body=(
+            "This is a test message, sent on request to confirm that alert email "
+            "reaches both recipient lists. No alert condition has been met and no "
+            "action is needed."
+        ),
+        roles=(COMMERCIAL, SUPPLY),
+    )
+
+
+def main(argv: list[str] | None = None) -> int:
+    """``python -m tobacco.alerts.email --test``: send one test alert, then exit.
+
+    Exits non-zero unless exactly one message went out, so a delivery failure
+    turns the workflow run red instead of hiding in a warning line.
+    """
+    import argparse
+
+    parser = argparse.ArgumentParser(description=main.__doc__)
+    parser.add_argument("--test", action="store_true", help="send one test alert")
+    args = parser.parse_args(argv)
+    if not args.test:
+        parser.error("nothing to do; pass --test")
+
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    return 0 if dispatch([test_alert()]) == 1 else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
