@@ -22,14 +22,9 @@ from __future__ import annotations
 
 import requests
 import streamlit as st
+from labels import ROLE_LABELS  # noqa: F401 - re-exported; labels owns the vocabulary
 
 TIMEOUT = 20
-
-ROLE_LABELS = {
-    "commercial_director": "Commercial Director",
-    "supply_chain_manager": "Supply Chain Manager",
-    "admin": "Administrator",
-}
 
 
 def _config(key: str) -> str | None:

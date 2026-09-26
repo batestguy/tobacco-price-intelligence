@@ -8,3 +8,7 @@
 # about production.
 -r requirements-actions.txt
 pytest==8.3.4
+# The dashboard's own stack, for tests/test_app_render.py (Streamlit AppTest).
+# Same pins as the root requirements.txt that Streamlit Cloud installs.
+streamlit==1.61.1
+plotly==6.9.0
