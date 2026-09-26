@@ -185,7 +185,7 @@ The compute is Kaggle's, never the local machine's. Two ways to get it there:
 2. **Settings → Accelerator → GPU T4**, and **Internet → on**. Both need a
    phone-verified Kaggle account.
 3. **Add-ons → Secrets →** add `HF_TOKEN` (write scope) and tick it for this notebook.
-4. **Run all**, skipping the "export sample" cell (5).
+4. **Run all**. The label-export cell (5) is off by default (`RUN_LABELLING_EXPORT`).
 
 ### Route B: Kaggle CLI (scriptable, from WSL)
 
@@ -230,6 +230,9 @@ On a connection that drops large downloads, skip the local copy: pass the output
 signed download URLs instead (`list_kernel_session_output` in the Kaggle SDK returns
 one per file, no auth needed to fetch), and the runner fetches the weights itself:
 `gh workflow run publish-model.yml -f urls='{"config.json": "…", "model.safetensors": "…", …}'`.
+Include every file in `finbert-ng-financial/`, `metrics.json` among them, so the Hub repo
+carries the held-out accuracy next to the weights. The first run's figures are also
+committed at `models/finbert_metrics.json`.
 The job masks them, but they are short-lived; dispatch right after generating them.
 
 The notebook also sets `enable_internet`, which needs a phone-verified Kaggle account.
