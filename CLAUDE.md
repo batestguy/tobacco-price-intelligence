@@ -21,6 +21,15 @@ Local conda envs (documented in `ENVIRONMENTS.md`) are useful only for *reading*
 an interpreter's help — imports resolving, type hints, notebook rendering. They are not the
 execution path and must not be referenced in workflows, docs, or setup instructions.
 
+**The one GPU job, the FinBERT fine-tune, runs on Kaggle.** It is submitted from the web UI
+or with `kaggle kernels push` from **WSL**, where the Kaggle and Colab CLIs are signed in.
+On Windows the Kaggle CLI is not signed in and the Colab CLI crashes. WSL is a submission
+client only: never train there. Kaggle is preferred over Colab because the notebook's
+upload step reads the `HF_TOKEN` Kaggle secret, and the Colab CLI has no secret store.
+Route, commands and status: `SETUP.md` Step 5. Tool state: `ENVIRONMENTS.md`. Labels:
+`data/labels/` (model-made, agreement-only; do not describe them as human
+annotation).
+
 ## Architecture
 
 ```
@@ -62,6 +71,8 @@ models/               XGBoost joblib + metrics.json (small artifacts only)
 supabase/schema.sql   the `users` role table behind dashboard Auth — nothing else
 app/streamlit_app.py  dashboard
 notebooks/            Kaggle transfer-learning notebook
+data/labels/          agreed headline labels for the fine-tune (+ README with stats)
+docs/                 labelling-guide.md: the labelling rules and process
 REGISTRY.md           every external resource, URL and secret name in one place
 ```
 

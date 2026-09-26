@@ -74,6 +74,8 @@ data/curated/         month-partitioned Parquet, committed by Actions
 models/               XGBoost joblib + metrics.json
 supabase/schema.sql   the `users` role table behind dashboard Auth
 notebooks/            Kaggle transfer-learning notebook
+data/labels/          agreed headline labels for the fine-tune (+ README with stats)
+docs/                 labelling-guide.md: the labelling rules and process
 app/streamlit_app.py  dashboard
 REGISTRY.md           index of every external resource, URL and secret
 ```

@@ -4,7 +4,8 @@ Everything needed to take this repository from "code exists" to "pipeline is
 running in the cloud". Work top to bottom; each step states what breaks if you
 skip it, so you can stop partway and still have something that works.
 
-Nothing here runs on your machine. The only local tools are `git` and `gh`.
+Nothing here runs on your machine. The only local tools are `git` and `gh`, plus the
+Kaggle CLI in WSL for Step 5, which submits a notebook to Kaggle's GPU.
 
 ---
 
@@ -171,14 +172,62 @@ though you will not get past the login screen until Auth is configured.
 
 ## Step 5 — Transfer learning (optional, Phase 3)
 
-Only worth doing once the scrapers have accumulated a few months of headlines.
+**Status 2026-09-24:** labels exist (`data/labels/headlines_labelled.csv`, 344 rows,
+made by the process in [`docs/labelling-guide.md`](docs/labelling-guide.md)), and the
+notebook reads them from the repo. What is left is running it on a GPU.
 
-1. Upload [`notebooks/finbert_transfer_learning.ipynb`](notebooks/finbert_transfer_learning.ipynb)
-   to Kaggle, enable the **T4 GPU** accelerator (30 h/week free).
-2. Run it. It exports a sample for manual labelling — that part is genuinely
-   manual, and the notebook explains why training on the base model's own scores
-   would only distil its mistakes.
-3. It pushes weights to the HF Hub, then:
+The compute is Kaggle's, never the local machine's. Two ways to get it there:
+
+### Route A: Kaggle web UI (simplest)
+
+1. On kaggle.com, create a notebook and import
+   [`notebooks/finbert_transfer_learning.ipynb`](notebooks/finbert_transfer_learning.ipynb).
+2. **Settings → Accelerator → GPU T4**, and **Internet → on**. Both need a
+   phone-verified Kaggle account.
+3. **Add-ons → Secrets →** add `HF_TOKEN` (write scope) and tick it for this notebook.
+4. **Run all**, skipping the "export sample" cell (5).
+
+### Route B: Kaggle CLI (scriptable, from WSL)
+
+The Kaggle CLI only *submits* the notebook; it runs on Kaggle's T4. Use WSL:
+there the CLI is already signed in (OAuth), while the Windows copy is not.
+
+```bash
+# in WSL (Ubuntu), in a scratch folder outside the repo
+cp /mnt/d/Tobacco\ Project/notebooks/finbert_transfer_learning.ipynb .
+cat > kernel-metadata.json <<'JSON'
+{
+  "id": "<kaggle-username>/finbert-ng-financial",
+  "title": "finbert-ng-financial",
+  "code_file": "finbert_transfer_learning.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_internet": true
+}
+JSON
+kaggle kernels push -p .
+kaggle kernels status <kaggle-username>/finbert-ng-financial   # poll until complete
+kaggle kernels output <kaggle-username>/finbert-ng-financial -p out/
+```
+
+**The CLI cannot attach secrets.** Before the first push, open the kernel once in the
+web editor and tick `HF_TOKEN` under Add-ons → Secrets. Without it, the push cell
+fails and nothing is uploaded, though training still runs. Whether that attachment
+survives later `kernels push` calls has **not been verified**: check the first CLI
+run's log for the push.
+
+**Why not Colab?** The Colab CLI (`colab run --gpu T4 script.py`) exists and is
+signed in under WSL, but it runs a `.py` script rather than this notebook. It has
+no secret store, so `kaggle_secrets` in the push cell would fail, and free-tier GPU
+availability through the CLI is unverified. Keep it as a fallback, not the route.
+
+### Either route
+
+1. The notebook uploads to the HF Hub only if the tuned model beats the base one on
+   the held-out split. Otherwise it stops at an `assert`.
+2. After a push:
 
    ```bash
    gh variable set FINBERT_MODEL --body batestguy/finbert-ng-financial

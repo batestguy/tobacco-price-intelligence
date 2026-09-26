@@ -15,16 +15,17 @@ project back up.
 | Streamlit Community Cloud | Dashboard hosting | 1 GB RAM; sleeps after 12 h idle | https://share.streamlit.io |
 | Groq | GPT-OSS 120B memo generation (Llama 3.3 70B shut down 2026-08-16) | ~1000 req/day, 12k tokens/min | https://console.groq.com |
 | Hugging Face | Fine-tuned model weights | 100 GB Hub storage | https://huggingface.co/batestguy |
-| Kaggle | T4 GPU for transfer learning | 30 h/week, 12 h/session | https://kaggle.com/code |
+| Kaggle | T4 GPU for transfer learning (web UI, or `kaggle kernels push` from WSL) | 30 h/week, 12 h/session; GPU and internet need a phone-verified account | https://kaggle.com/code |
+| Google Colab | Fallback GPU only (`colab` CLI in WSL; runs `.py`, has no secret store) | free-tier GPU not guaranteed | https://colab.research.google.com |
 | Gmail | SMTP alerts | 100 emails/day (app password) | https://myaccount.google.com/apppasswords |
 
 ## Deployed endpoints
 
 | What | URL |
 |---|---|
-| Dashboard | _set after first Streamlit deploy_ |
-| Supabase project | _set after project creation_ |
-| Fine-tuned FinBERT | `batestguy/finbert-ng-financial` _(Phase 3)_ |
+| Dashboard | https://tobacco-price-intelligence.streamlit.app (Python 3.11, deployed 2026-09-24) |
+| Supabase project | https://wetxarvvgytgvksychpe.supabase.co |
+| Fine-tuned FinBERT | `batestguy/finbert-ng-financial`: _not trained yet; labels ready, see SETUP.md Step 5_ |
 
 ## Data sources
 
