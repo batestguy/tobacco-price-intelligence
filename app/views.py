@@ -338,6 +338,7 @@ def executive() -> None:
             column_config=RECOMMENDATION_COLUMNS,
             hide_index=True,
             width="stretch",
+            height=35 * (len(recommendations) + 1) + 3,  # every row, no inner scroll
         )
 
     render_memo()
