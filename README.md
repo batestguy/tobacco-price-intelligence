@@ -15,7 +15,14 @@ infrastructure — with **zero local compute**.
 Choose *Explore as Commercial Director* or *Explore as Supply Chain Manager* on the sign-in
 page: no account needed. The demo shows the same public data the team views see.
 
-<!-- screenshots -->
+| Executive view | Supply chain view |
+|---|---|
+| ![Executive view: a plain-language pricing verdict above exchange-rate, inflation, sentiment and news-crisis metrics](docs/screenshots/executive.jpeg) | ![Supply chain view: four-week demand heatmap by product and region beside each combination's stock position](docs/screenshots/supply-chain.jpeg) |
+| **Sign-in, with the public demo** | **Dark mode** |
+| ![Sign-in page: Köhler's 1887 Nicotiana tabacum plate beside the demo buttons and sign-in form](docs/screenshots/sign-in.jpeg) | ![Executive view in dark mode](docs/screenshots/executive-dark.jpeg) |
+
+<sub>Screenshots of the live demo, 27 September 2026. Sales figures are synthetic. The phone
+layout is in [`docs/screenshots/sign-in-mobile.jpeg`](docs/screenshots/sign-in-mobile.jpeg).</sub>
 
 ## What it does
 

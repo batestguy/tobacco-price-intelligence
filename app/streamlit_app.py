@@ -62,7 +62,8 @@ def render_login() -> None:
     # On a phone the columns stack and the plate would fill the first screen,
     # so it is hidden there, like the view watermarks.
     st.html(
-        "<style>@media (max-width: 640px) { .st-key-signin-plate { display: none; } }</style>"
+        "<style>@media (max-width: 640px) { .st-key-signin-plate,"
+        " [data-testid='stColumn']:has(.st-key-signin-plate) { display: none; } }</style>"
     )
     with plate, st.container(key="signin-plate"):
         # Fixed width so the portrait plate (~565px tall) keeps the form above
