@@ -334,3 +334,17 @@ def test_a_stale_helper_module_is_reloaded_not_crashed_on(monkeypatch):
     assert not at.exception, [e.value for e in at.exception]
     assert "Explore as Commercial Director" in [b.label for b in at.button]
     assert hasattr(auth, "DEMO_ROLES")
+
+
+def test_metric_deltas_use_an_ascii_sign():
+    """Streamlit picks the delta arrow from a leading "-"; U+2212 read as a rise."""
+    at = AppTest.from_string(
+        VIEW_SCRIPT.format(app=str(APP), src=str(SRC), view="executive"),
+        default_timeout=TIMEOUT,
+    )
+    at.run()
+    deltas = [m.proto.delta for m in at.metric if m.proto.delta]
+    assert deltas, "the exchange-rate metric should carry a 7-day delta"
+    for delta in deltas:
+        assert delta[0] in "+-", delta
+        assert "\u2212" not in delta, delta

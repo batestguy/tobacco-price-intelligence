@@ -49,6 +49,34 @@ def render_disclaimer() -> None:
     st.caption(config.DISCLAIMER)
 
 
+#: The config.toml chart palettes, repeated here because Streamlit 1.61 did not
+#: apply chartCategoricalColors to these graph_objects figures on Cloud (they
+#: came out in the default blues). Keep in step with .streamlit/config.toml.
+CATEGORICAL = {
+    "light": ["#A06320", "#4E6B35", "#51606B", "#A33A2A", "#A67A1E"],
+    "dark": ["#D9A25B", "#8FB36A", "#9AAAB5", "#E07A62", "#E0B450"],
+}
+SEQUENTIAL = {
+    "light": ["#F6F1E7", "#F0E1CB", "#EAD1AF", "#E5C293", "#DFB277",
+              "#B98A4F", "#997243", "#7A5A37", "#5A422B", "#3A2A1F"],
+    "dark": ["#2A211A", "#422E1B", "#593B1C", "#71491E", "#88561F",
+             "#B17D41", "#C19662", "#D2B082", "#E2C9A3", "#F3E3C4"],
+}
+
+
+def _mode() -> str:
+    return "dark" if st.context.theme.type == "dark" else "light"
+
+
+def _colorway() -> list[str]:
+    return CATEGORICAL[_mode()]
+
+
+def _colorscale() -> list[list]:
+    steps = SEQUENTIAL[_mode()]
+    return [[i / (len(steps) - 1), colour] for i, colour in enumerate(steps)]
+
+
 def render_watermark(view: str) -> None:
     """The view's engraving, faint and fixed at the lower right, behind the content.
 
@@ -70,7 +98,7 @@ def render_watermark(view: str) -> None:
 [data-testid="stMain"] {{ isolation: isolate; }}
 [data-testid="stMain"]::before {{
   content: ""; position: fixed; right: 2vw; bottom: 2vh; z-index: -1;
-  width: min(36vw, 520px); aspect-ratio: {ratio:.4f};
+  width: 520px; max-width: 36vw; max-height: 60vh; aspect-ratio: {ratio:.4f};
   background: url("app/static/watermarks/{filename}") center / contain no-repeat;
   {tone}
   -webkit-mask-image: {mask}; mask-image: {mask};
@@ -110,7 +138,9 @@ def render_headline_metrics() -> None:
             st.metric(
                 "Naira per US dollar",
                 f"₦{rate:,.2f}" if rate else "—",
-                f"{labels.signed_pct(change, 2)} over 7 days" if change is not None else None,
+                # ASCII sign, not labels.signed_pct's U+2212: Streamlit picks the
+                # arrow from a leading "-", and a true minus read as a rise.
+                f"{change:+.2f}% over 7 days" if change is not None else None,
                 # A weakening naira is bad news, so invert the default
                 # green-for-up colouring.
                 delta_color="inverse",
@@ -198,6 +228,7 @@ def render_trend_chart() -> None:
         legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
         margin=dict(t=30, r=10, b=10, l=10),
         hovermode="x unified",
+        colorway=_colorway(),
     )
     st.plotly_chart(figure, width="stretch")
 
@@ -216,7 +247,7 @@ def render_memo() -> None:
             )
         else:
             st.caption(f"Written {memo_date} by {groq.MODEL} on Groq, from the figures on this page.")
-        st.markdown(labels.relabel_codes(memo))
+        st.markdown(labels.demote_headings(labels.relabel_codes(memo)))
 
 
 def _recommendation_table(recommendations: pd.DataFrame) -> pd.DataFrame:
@@ -298,20 +329,18 @@ def executive() -> None:
     render_headline_metrics()
     render_trend_chart()
 
-    left, right = st.columns([2, 3], gap="medium")
-    with left:
-        render_memo()
-    with right:
-        st.subheader("Recommendations by product and region", anchor=False)
-        if recommendations.empty:
-            st.caption("No recommendation yet. One is generated each morning at 08:00 WAT.")
-        else:
-            st.dataframe(
-                _recommendation_table(recommendations),
-                column_config=RECOMMENDATION_COLUMNS,
-                hide_index=True,
-                width="stretch",
-            )
+    st.subheader("Recommendations by product and region", anchor=False)
+    if recommendations.empty:
+        st.caption("No recommendation yet. One is generated each morning at 08:00 WAT.")
+    else:
+        st.dataframe(
+            _recommendation_table(recommendations),
+            column_config=RECOMMENDATION_COLUMNS,
+            hide_index=True,
+            width="stretch",
+        )
+
+    render_memo()
 
 
 def supply_chain() -> None:
@@ -347,6 +376,7 @@ def supply_chain() -> None:
                 x=list(pivot.columns),
                 y=list(pivot.index),
                 colorbar=dict(title=dict(text="Packs")),
+                colorscale=_colorscale(),
                 texttemplate="%{z:,.0f}",
                 hovertemplate="%{y} in %{x}<br>%{z:,.0f} packs<extra></extra>",
             )
@@ -405,6 +435,7 @@ def supply_chain() -> None:
         yaxis=dict(title=dict(text="Packs sold per week")),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
         margin=dict(t=30, r=10, b=10, l=10),
+        colorway=_colorway(),
     )
     st.plotly_chart(volume, width="stretch")
     st.caption("Sales are synthetic, generated for this demonstration. No company data is used.")
@@ -455,6 +486,7 @@ def admin() -> None:
                     x=importances.values,
                     y=[labels.feature(name) for name in importances.index],
                     orientation="h",
+                    marker_color=_colorway()[0],
                     hovertemplate="%{y}<br>Importance %{x:.3f}<extra></extra>",
                 )
             )
