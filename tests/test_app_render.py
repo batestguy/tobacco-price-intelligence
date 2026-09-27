@@ -348,3 +348,27 @@ def test_metric_deltas_use_an_ascii_sign():
     for delta in deltas:
         assert delta[0] in "+-", delta
         assert "\u2212" not in delta, delta
+
+
+def test_the_users_section_is_inert_in_a_demo_session(monkeypatch):
+    """Explicit guard: even called directly, a demo session makes no Supabase call."""
+    import requests
+
+    def refuse(*args, **kwargs):
+        raise AssertionError("a demo session must not call Supabase")
+
+    monkeypatch.setattr(requests, "get", refuse)
+    monkeypatch.setattr(requests, "patch", refuse)
+    at = AppTest.from_string(
+        f"import sys\nsys.path[:0] = [{str(APP)!r}, {str(SRC)!r}]\n"
+        "import views\nviews.render_users()\n",
+        default_timeout=TIMEOUT,
+    )
+    at.secrets["SUPABASE_URL"] = "https://example.invalid"
+    at.secrets["SUPABASE_ANON_KEY"] = "anon-test"
+    at.session_state["demo"] = True
+    at.session_state["role"] = "commercial_director"
+    at.run()
+    assert not at.exception, [e.value for e in at.exception]
+    assert not at.get("data_editor") and not at.button
+    assert any("Sign in as an administrator" in c.value for c in at.caption)

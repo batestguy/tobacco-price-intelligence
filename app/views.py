@@ -544,7 +544,9 @@ def render_users() -> None:
     """
     st.subheader("Users", anchor=False)
     user = auth.current_user()
-    if user is None or not auth.configured():
+    # A demo session can never be routed here and has no token for the admin
+    # helpers to send; this makes that invariant explicit at the call site.
+    if user is None or user.get("demo") or not auth.configured():
         st.caption(
             "Sign in as an administrator to assign roles here. New sign-ups arrive "
             "with no access until a role is assigned."
