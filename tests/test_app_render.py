@@ -312,3 +312,25 @@ def test_admin_user_table_renders_in_words(monkeypatch):
     assert "No access" in role_options and "Administrator" in role_options
     frame = editor.value
     assert list(frame["email"]) == ["new@example.com", "admin@example.com"]  # pending first
+
+
+def test_a_stale_helper_module_is_reloaded_not_crashed_on(monkeypatch):
+    """Reproduces the 2026-09-27 outage: the new main script, the old ``auth``.
+
+    Streamlit Cloud re-ran the updated ``streamlit_app.py`` against an ``auth``
+    module left in ``sys.modules`` by the previous deploy, which had no
+    ``DEMO_ROLES``. ``_refresh_helpers`` must reload it before anything runs.
+    """
+    import sys
+
+    sys.path[:0] = [str(APP), str(SRC)]
+    import auth
+
+    monkeypatch.delattr(auth, "DEMO_ROLES")
+    monkeypatch.setattr(auth, "_source_mtime", 0.0, raising=False)
+
+    at = _app()
+    at.run()
+    assert not at.exception, [e.value for e in at.exception]
+    assert "Explore as Commercial Director" in [b.label for b in at.button]
+    assert hasattr(auth, "DEMO_ROLES")
