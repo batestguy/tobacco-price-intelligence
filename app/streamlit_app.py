@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import importlib  # noqa: E402
 import os  # noqa: E402
+import threading  # noqa: E402
 
 import auth  # noqa: E402
 import data  # noqa: E402
@@ -39,12 +40,24 @@ def _refresh_helpers() -> None:
     module is stamped with its file's mtime when (re)loaded; a module with no
     stamp, or an older one, is reloaded. Dependency order: ``views`` imports the
     other three, so it goes last and picks up their fresh copies.
+
+    Sessions run as threads in one process and share ``sys.modules``, so two
+    reruns right after a deploy could reload at once, or one could read a module
+    mid-reload. The process-wide lock serialises the check and the reloads.
     """
-    for module in (labels, auth, data, views):
-        mtime = os.path.getmtime(module.__file__)
-        if getattr(module, "_source_mtime", None) != mtime:
-            module = importlib.reload(module)
-            module._source_mtime = mtime
+    with _reload_lock():
+        for module in (labels, auth, data, views):
+            mtime = os.path.getmtime(module.__file__)
+            if getattr(module, "_source_mtime", None) != mtime:
+                module = importlib.reload(module)
+                module._source_mtime = mtime
+
+
+@st.cache_resource
+def _reload_lock() -> threading.Lock:
+    """One lock per process: this script re-executes every run, so a plain
+    module-level Lock here would be a new, useless lock each time."""
+    return threading.Lock()
 
 
 _refresh_helpers()
