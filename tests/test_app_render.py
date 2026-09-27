@@ -372,3 +372,17 @@ def test_the_users_section_is_inert_in_a_demo_session(monkeypatch):
     assert not at.exception, [e.value for e in at.exception]
     assert not at.get("data_editor") and not at.button
     assert any("Sign in as an administrator" in c.value for c in at.caption)
+
+
+def test_the_design_credit_is_a_footnote_below_the_disclaimer():
+    """On the sign-in page (and via render_disclaimer, every page), after §11."""
+    import sys
+
+    sys.path[:0] = [str(APP), str(SRC)]
+    import views
+
+    at = _app()
+    at.run()
+    captions = [c.value for c in at.caption]
+    assert captions.index(views.DESIGN_CREDIT) > captions.index(config.DISCLAIMER)
+    assert captions[-1] == views.DESIGN_CREDIT

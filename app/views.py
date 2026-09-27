@@ -21,6 +21,9 @@ import streamlit as st
 from tobacco import config
 from tobacco.memo import groq
 
+#: Footer footnote on every page, below the disclaimer.
+DESIGN_CREDIT = "Designed by JJMB."
+
 #: Rows of history behind the sparklines in the metric row.
 SPARK_DAYS = 30
 
@@ -43,10 +46,12 @@ WATERMARKS = {
 
 
 def render_disclaimer() -> None:
-    """The §11 text, verbatim from ``config``, plus the portfolio notice."""
+    """The §11 text, verbatim from ``config``, the portfolio notice, and a credit."""
     st.space("large")
     st.caption(config.PORTFOLIO_NOTICE)
     st.caption(config.DISCLAIMER)
+    # A footnote under the disclaimer, never inside it: the §11 text stays verbatim.
+    st.caption(DESIGN_CREDIT)
 
 
 #: The config.toml chart palettes, repeated here because Streamlit 1.61 did not
