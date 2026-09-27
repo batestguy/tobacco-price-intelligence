@@ -149,3 +149,10 @@ def test_stock_verdict():
 
 def test_relabel_codes():
     assert labels.relabel_codes("**PREMIUM_20** and VALUE_20") == "**Premium** and Value"
+
+
+def test_demote_headings():
+    memo = "# Title\n### Situation\ntext with a # hash\n###### deep"
+    assert labels.demote_headings(memo) == (
+        "### Title\n##### Situation\ntext with a # hash\n###### deep"
+    )

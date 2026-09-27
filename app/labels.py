@@ -11,6 +11,7 @@ screen gets words.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 
 # --------------------------------------------------------------------------
@@ -265,3 +266,9 @@ def relabel_codes(text: str) -> str:
     for code, short in SKU_SHORT.items():
         text = text.replace(code, short)
     return text
+
+
+def demote_headings(markdown: str, levels: int = 2) -> str:
+    """``### Risks`` -> ``##### Risks``: the LLM memo's headings sit inside a panel."""
+    return re.sub(r"^(#{1,6})(?=\s)", lambda m: "#" * min(6, len(m.group(1)) + levels),
+                  markdown, flags=re.MULTILINE)
