@@ -19,10 +19,35 @@ from pathlib import Path
 # app.data's side effect keeps the import order safe to reformat.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+import importlib  # noqa: E402
+import os  # noqa: E402
+
 import auth  # noqa: E402
+import data  # noqa: E402
 import labels  # noqa: E402
 import streamlit as st  # noqa: E402
 import views  # noqa: E402
+
+
+def _refresh_helpers() -> None:
+    """Reload any app helper module whose source changed since it was imported.
+
+    Streamlit Community Cloud pulls a push into the running process and re-runs
+    this script, but can keep helper modules already in ``sys.modules``. On
+    2026-09-27 that served the new ``streamlit_app.py`` against the previous
+    deploy's ``auth`` and crashed the sign-in page (``auth.DEMO_ROLES``). Each
+    module is stamped with its file's mtime when (re)loaded; a module with no
+    stamp, or an older one, is reloaded. Dependency order: ``views`` imports the
+    other three, so it goes last and picks up their fresh copies.
+    """
+    for module in (labels, auth, data, views):
+        mtime = os.path.getmtime(module.__file__)
+        if getattr(module, "_source_mtime", None) != mtime:
+            module = importlib.reload(module)
+            module._source_mtime = mtime
+
+
+_refresh_helpers()
 
 st.set_page_config(
     page_title="Price intelligence",
