@@ -88,7 +88,7 @@ def render_watermark(view: str) -> None:
     filename, ratio = WATERMARKS[view]
     dark = st.context.theme.type == "dark"
     tone = (
-        "filter: grayscale(1) invert(1); mix-blend-mode: screen; opacity: 0.09;"
+        "filter: grayscale(1) invert(1); mix-blend-mode: screen; opacity: 0.06;"
         if dark
         else "filter: grayscale(1) sepia(0.5); mix-blend-mode: multiply; opacity: 0.07;"
     )
@@ -252,7 +252,7 @@ def render_memo() -> None:
 
 def _recommendation_table(recommendations: pd.DataFrame) -> pd.DataFrame:
     table = recommendations.sort_values(["sku", "region"]).copy()
-    table["sku"] = table["sku"].map(labels.sku)
+    table["sku"] = table["sku"].map(labels.sku_short)
     table["binding_constraint"] = table["binding_constraint"].map(labels.constraint)
     # A list per cell, so MultiselectColumn can draw it as a coloured badge.
     table["inventory_action"] = table["inventory_action"].map(lambda status: [status])
@@ -271,7 +271,7 @@ STOCK_BADGE = st.column_config.MultiselectColumn(
 )
 
 RECOMMENDATION_COLUMNS = {
-    "sku": st.column_config.TextColumn("Product"),
+    "sku": st.column_config.TextColumn("Product", help="Every product is a pack of 20."),
     "region": st.column_config.TextColumn("Region"),
     "price_adjustment_pct": st.column_config.NumberColumn(
         "Price change", format="%+.1f%%",
@@ -399,15 +399,17 @@ def supply_chain() -> None:
         table["sku"] = table["sku"].map(labels.sku_short)
         table["inventory_action"] = table["inventory_action"].map(lambda s: [s])
         st.dataframe(
-            table[["sku", "region", "inventory_action", "forecast_qty_4w"]],
+            # Demand is in the heatmap beside it; repeating it here clipped the
+            # table. Tall enough for every row, so it never scrolls inside itself.
+            table[["sku", "region", "inventory_action"]],
             column_config={
                 "sku": st.column_config.TextColumn("Product"),
                 "region": st.column_config.TextColumn("Region"),
                 "inventory_action": STOCK_BADGE,
-                "forecast_qty_4w": RECOMMENDATION_COLUMNS["forecast_qty_4w"],
             },
             hide_index=True,
             width="stretch",
+            height=35 * (len(table) + 1) + 3,
         )
 
     st.subheader("Weekly volume by product", anchor=False)
