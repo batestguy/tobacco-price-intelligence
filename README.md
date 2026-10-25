@@ -15,6 +15,11 @@ infrastructure — with **zero local compute**.
 Choose *Explore as Commercial Director* or *Explore as Supply Chain Manager* on the sign-in
 page: no account needed. The demo shows the same public data the team views see.
 
+![Walkthrough of the live demo: the sign-in page, the executive view's pricing verdict, naira and news chart, recommendations table and strategic memo, then the supply chain view's demand heatmap, stock position and weekly volume](docs/screenshots/demo.gif)
+
+<sub>The demo views, recorded from the live dashboard on 25 October 2026. The admin view
+(user and role management) is behind sign-in and not shown.</sub>
+
 | Executive view | Supply chain view |
 |---|---|
 | ![Executive view: a plain-language pricing verdict above exchange-rate, inflation, sentiment and news-crisis metrics](docs/screenshots/executive.jpeg) | ![Supply chain view: four-week demand heatmap by product and region beside each combination's stock position](docs/screenshots/supply-chain.jpeg) |
@@ -138,7 +143,8 @@ reference index of every external service, endpoint and secret name.
 - **Git LFS is deliberately not used.** Its 1 GB/month bandwidth quota is consumed by every
   Actions checkout. Artifacts too large for git go to HF Hub or GitHub Releases.
 - **Supabase free pauses after 7 days idle.** `keepalive.yml` makes one anonymous read a
-  week so it never does. Even paused, it costs only team sign-in: the demo never calls
+  week to prevent that, and a failed keepalive run is the signal to restore the project from
+  the Supabase dashboard. Even paused, it costs only team sign-in: the demo never calls
   Supabase, and no data lives there, only the `users` role table.
 - **Streamlit Community Cloud** = 1 GB RAM, sleeps after 12 idle hours, unlimited public apps.
 - **Kaggle** = 30 h/week of T4 GPU with background execution — the transfer-learning surface.
