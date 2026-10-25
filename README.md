@@ -17,7 +17,9 @@ page: no account needed. The demo shows the same public data the team views see.
 
 ![Walkthrough of the live demo: the sign-in page, the executive view's pricing verdict, naira and news chart, recommendations table and strategic memo, then the supply chain view's demand heatmap, stock position and weekly volume](docs/screenshots/demo.gif)
 
-▶ **[Watch the full walkthrough video](docs/screenshots/demo.mp4)** (67 s, MP4, 1440 px).
+▶ **[Watch the full walkthrough video](https://github.com/user-attachments/assets/c833c5bb-54c1-4a51-9bb2-543b31cfbc6c)** (67 s):
+
+https://github.com/user-attachments/assets/c833c5bb-54c1-4a51-9bb2-543b31cfbc6c
 
 <sub>The demo views, recorded from the live dashboard on 25 October 2026. The admin view
 (user and role management) is behind sign-in and not shown.</sub>
