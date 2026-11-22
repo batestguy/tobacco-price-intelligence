@@ -1,29 +1,29 @@
 {
-  "trained_at": "2026-11-15T02:30:00.725575+00:00",
-  "rmse": 990.2598426334687,
-  "mape_pct": 7.028751169559312,
-  "naive_baseline_rmse": 1099.4291226965627,
-  "naive_baseline_mape_pct": 8.8851159236645,
-  "n_train_rows": 1920,
+  "trained_at": "2026-11-22T02:56:40.773818+00:00",
+  "rmse": 1000.9770202155455,
+  "mape_pct": 7.320781940404412,
+  "naive_baseline_rmse": 1005.6587186184652,
+  "naive_baseline_mape_pct": 6.766941139242391,
+  "n_train_rows": 1932,
   "n_validation_rows": 48,
   "n_features": 24,
   "validation_weeks": 4,
   "train_period": [
     "2023-09-18",
-    "2026-10-05"
+    "2026-10-12"
   ],
   "top_features": {
-    "sku_PREMIUM_20": 0.5971999764442444,
-    "region_Lagos": 0.25060001015663147,
-    "region_Kano": 0.05719999969005585,
+    "sku_PREMIUM_20": 0.609499990940094,
+    "region_Lagos": 0.24269999563694,
+    "region_Kano": 0.05249999836087227,
     "region_Ibadan": 0.022600000724196434,
-    "region_Port_Harcourt": 0.01979999989271164,
-    "own_price_lag_1w": 0.015300000086426735,
-    "holiday_week": 0.01080000028014183,
-    "sku_MIDRANGE_20": 0.007899999618530273,
-    "month": 0.006500000134110451,
-    "own_price_lag_4w": 0.004399999976158142,
-    "week_of_year": 0.0020000000949949026,
-    "inflation": 0.0010999999940395355
+    "region_Port_Harcourt": 0.019999999552965164,
+    "own_price_lag_1w": 0.013899999670684338,
+    "holiday_week": 0.010400000028312206,
+    "month": 0.007000000216066837,
+    "sku_MIDRANGE_20": 0.007000000216066837,
+    "own_price_lag_4w": 0.004100000020116568,
+    "week_of_year": 0.0019000000320374966,
+    "sku_VALUE_20": 0.0017000000225380063
   }
 }
